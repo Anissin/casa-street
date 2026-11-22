@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Casa Street — Bold Moroccan Street Food in London</title>
+    <meta
+      name="description"
+      content="Oversized Casablanca, Tangier, and Marrakesh Moroccan sandwiches, flaky msemen wraps, and slow-cooked tagines in London. Order on Uber Eats or visit us."
+    />
+    <meta property="og:title" content="Casa Street — Bold Moroccan Street Food in London" />
+    <meta
+      property="og:description"
+      content="Oversized Casablanca, Tangier, and Marrakesh Moroccan sandwiches, flaky msemen wraps, and slow-cooked tagines. Order on Uber Eats."
+    />
+    <meta property="og:type" content="restaurant" />
+    <meta property="og:site_name" content="Casa Street" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Casa Street — Bold Moroccan Street Food in London" />
+    <meta
+      name="twitter:description"
+      content="Oversized Moroccan sandwiches and flaky msemen wraps in London. Order online via Uber Eats."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script id="casa-jsonld" type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Restaurant",
+        "name": "Casa Street",
+        "description": "Bold Moroccan street food in London featuring oversized Casablanca, Tangier, and Marrakesh sandwiches, flaky msemen wraps, and secondary traditional tagines.",
+        "servesCuisine": ["Moroccan", "Street Food", "Halal"],
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "145-147 Edgware Road",
+          "addressLocality": "London",
+          "postalCode": "W2 2HR",
+          "addressCountry": "GB"
+        },
+        "geo": {
+          "@type": "GeoCoordinates",
+          "latitude": 51.5175157,
+          "longitude": -0.1672527
+        },
+        "hasMap": "https://www.google.com/maps/search/?api=1&query=51.5175157%2C-0.1672527&query_place_id=ChIJB92CagAbdkgR-Uo59s_L3G0",
+        "sameAs": [
+          "https://www.instagram.com/casastreetldn/"
+        ],
+        "potentialAction": [
+          {
+            "@type": "OrderAction",
+            "name": "Order on Uber Eats",
+            "target": {
+              "@type": "EntryPoint",
+              "urlTemplate": "https://www.ubereats.com/gb/store/casa-street/tuQa5hFpRaWpH0Ih5ZyeKA"
+            }
+          },
+          {
+            "@type": "OrderAction",
+            "name": "Order on Deliveroo",
+            "target": {
+              "@type": "EntryPoint",
+              "urlTemplate": "https://deliveroo.co.uk/menu/london/paddington/casa-street?srsltid=AfmBOooePdmLDxNholMsROndcaZZx_M-bRhRXBUwlzTBNua9VA3KSn4f"
+            }
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body class="bg-[#FAFAF7] text-[#141413] antialiased selection:bg-[#C8281E] selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

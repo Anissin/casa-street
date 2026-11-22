@@ -1,0 +1,6 @@
+{
+  "name": "Casa Street — Bold Moroccan Street Food",
+  "description": "Oversized Casablanca, Tangier, and Marrakesh sandwiches, flaky msemen wraps, and secondary tagines in London. Order on Uber Eats or find us on Google Maps.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,398 @@
+{
+  "brand": {
+    "name": "Casa Street",
+    "logoUrl": "/assets/aistudio/Capture_d__cran_2026-11-22_122445_ca205e1c.png",
+    "tagline": "Casablanca to Paddington. Built Oversized.",
+    "districtNote": "145–147 Edgware Road, Paddington · Inside The Food District (100% Halal)",
+    "heroImage": "/assets/casa-street/casa_gallery_1.webp",
+    "heroImageAlt": "Authentic Casa Street oversized Moroccan baguette sandwiches stuffed with spiced kofta, merguez, olives, harissa, tuna, egg, and fresh salad"
+  },
+  "location": {
+    "streetAddress": "145–147 Edgware Road",
+    "postalCode": "W2 2HR",
+    "city": "London",
+    "district": "The Food District, Paddington",
+    "mapsUrl": "https://www.google.com/maps/search/?api=1&query=51.5175157%2C-0.1672527&query_place_id=ChIJB92CagAbdkgR-Uo59s_L3G0",
+    "uberEatsUrl": "https://www.ubereats.com/gb/store/casa-street/tuQa5hFpRaWpH0Ih5ZyeKA",
+    "deliverooUrl": "https://deliveroo.co.uk/menu/london/paddington/casa-street?srsltid=AfmBOooePdmLDxNholMsROndcaZZx_M-bRhRXBUwlzTBNua9VA3KSn4f",
+    "latitude": 51.5175157,
+    "longitude": -0.1672527,
+    "placeId": "ChIJB92CagAbdkgR-Uo59s_L3G0"
+  },
+  "socialLinks": [
+    {
+      "id": "instagram",
+      "platform": "instagram",
+      "label": "Instagram",
+      "handleOrNumber": "@casastreetldn",
+      "url": "https://www.instagram.com/casastreetldn/",
+      "verified": true,
+      "enabled": true,
+      "lockedVerified": true,
+      "placement": [
+        "nav",
+        "hero",
+        "follow",
+        "footer"
+      ]
+    },
+    {
+      "id": "ubereats",
+      "platform": "ubereats",
+      "label": "Uber Eats",
+      "handleOrNumber": "Uber Eats UK",
+      "url": "https://www.ubereats.com/gb/store/casa-street/tuQa5hFpRaWpH0Ih5ZyeKA",
+      "verified": true,
+      "enabled": true,
+      "lockedVerified": true,
+      "placement": [
+        "nav",
+        "hero",
+        "footer",
+        "sticky"
+      ]
+    },
+    {
+      "id": "deliveroo",
+      "platform": "deliveroo",
+      "label": "Deliveroo",
+      "handleOrNumber": "Deliveroo Paddington",
+      "url": "https://deliveroo.co.uk/menu/london/paddington/casa-street?srsltid=AfmBOooePdmLDxNholMsROndcaZZx_M-bRhRXBUwlzTBNua9VA3KSn4f",
+      "verified": true,
+      "enabled": true,
+      "lockedVerified": true,
+      "placement": [
+        "hero",
+        "footer"
+      ]
+    },
+    {
+      "id": "google_maps",
+      "platform": "google_maps",
+      "label": "Find Us",
+      "handleOrNumber": "145–147 Edgware Road, W2 2HR",
+      "url": "https://www.google.com/maps/search/?api=1&query=51.5175157%2C-0.1672527&query_place_id=ChIJB92CagAbdkgR-Uo59s_L3G0",
+      "verified": true,
+      "enabled": true,
+      "lockedVerified": true,
+      "placement": [
+        "hero",
+        "footer",
+        "sticky"
+      ]
+    },
+    {
+      "id": "tiktok",
+      "platform": "tiktok",
+      "label": "TikTok",
+      "handleOrNumber": "",
+      "url": "",
+      "verified": false,
+      "enabled": false,
+      "placement": [
+        "follow",
+        "footer"
+      ]
+    },
+    {
+      "id": "facebook",
+      "platform": "facebook",
+      "label": "Facebook",
+      "handleOrNumber": "",
+      "url": "",
+      "verified": false,
+      "enabled": false,
+      "placement": [
+        "follow",
+        "footer"
+      ]
+    },
+    {
+      "id": "whatsapp",
+      "platform": "whatsapp",
+      "label": "WhatsApp",
+      "handleOrNumber": "",
+      "url": "",
+      "verified": false,
+      "enabled": false,
+      "placement": [
+        "follow",
+        "footer"
+      ]
+    }
+  ],
+  "menuCategories": [
+    {
+      "id": "signature-sandwiches",
+      "title": "Signature Moroccan Sandwiches",
+      "kicker": "Primary Street Food · Oversized Moroccan Baguettes",
+      "description": "Casa Street’s headline loaded sandwiches named after Moroccan cities—packed with spiced meats, chips inside, Moroccan salad, olives, and house sauces.",
+      "priority": "primary",
+      "published": true,
+      "ownerConfirmationRequired": false,
+      "ownerConfirmed": true,
+      "items": [
+        {
+          "id": "casablanca-sandwich",
+          "name": "Casablanca",
+          "cityInspiration": "Casablanca",
+          "breadOrVessel": "Oversized Moroccan Baguette",
+          "description": "Marinated chicken thighs, spiced mince, olives, chips, Moroccan salad, harissa, mayo, and sauce Algérienne.",
+          "image": "/assets/casa-street/casa_gallery_1.webp",
+          "imageAlt": "Authentic Casa Street Casablanca oversized Moroccan baguette sandwiches",
+          "photoSource": "official-casa-street",
+          "ownerPhotoVerified": true,
+          "orderUrl": "https://www.ubereats.com/gb/store/casa-street/tuQa5hFpRaWpH0Ih5ZyeKA",
+          "deliverooUrl": "https://deliveroo.co.uk/menu/london/paddington/casa-street?srsltid=AfmBOooePdmLDxNholMsROndcaZZx_M-bRhRXBUwlzTBNua9VA3KSn4f",
+          "verifiedPrice": "£11.70",
+          "priceSourceNote": "Uber Eats / Deliveroo Paddington"
+        },
+        {
+          "id": "tangier-sandwich",
+          "name": "Tangier",
+          "cityInspiration": "Tangier",
+          "breadOrVessel": "Oversized Moroccan Baguette",
+          "description": "Beef sausage, chicken breast, chips, iceberg salad, tomatoes, grilled onions, sauce Tunisienne, and mayo.",
+          "image": "/src/assets/images/sandwich_tangier_1795349697634.jpg",
+          "imageAlt": "Tangier Moroccan sandwich with grilled meats, peppers, and house sauce",
+          "photoSource": "editorial-kitchen",
+          "ownerPhotoVerified": true,
+          "orderUrl": "https://www.ubereats.com/gb/store/casa-street/tuQa5hFpRaWpH0Ih5ZyeKA",
+          "deliverooUrl": "https://deliveroo.co.uk/menu/london/paddington/casa-street?srsltid=AfmBOooePdmLDxNholMsROndcaZZx_M-bRhRXBUwlzTBNua9VA3KSn4f",
+          "verifiedPrice": "£11.70",
+          "priceSourceNote": "Uber Eats / Deliveroo Paddington"
+        },
+        {
+          "id": "marrakesh-sandwich",
+          "name": "Marrakesh",
+          "cityInspiration": "Marrakesh",
+          "breadOrVessel": "Oversized Moroccan Baguette",
+          "description": "Marinated mince, olives, Moroccan salad, grilled onions, chips, Algérienne sauce, and samurai sauce.",
+          "image": "/src/assets/images/hero_casa_sandwich_1795349697989.jpg",
+          "imageAlt": "Marrakesh Moroccan sandwich wrapped in kraft butcher paper",
+          "photoSource": "editorial-kitchen",
+          "ownerPhotoVerified": true,
+          "orderUrl": "https://www.ubereats.com/gb/store/casa-street/tuQa5hFpRaWpH0Ih5ZyeKA",
+          "deliverooUrl": "https://deliveroo.co.uk/menu/london/paddington/casa-street?srsltid=AfmBOooePdmLDxNholMsROndcaZZx_M-bRhRXBUwlzTBNua9VA3KSn4f",
+          "verifiedPrice": "£12.75",
+          "priceSourceNote": "Uber Eats"
+        },
+        {
+          "id": "rabat-sandwich",
+          "name": "Rabat",
+          "cityInspiration": "Rabat",
+          "breadOrVessel": "Oversized Moroccan Baguette",
+          "description": "Marinated lamb cubes, Moroccan salad, chips, grilled onions, harissa, and sauce marocaine.",
+          "image": "/src/assets/images/sandwich_casablanca_1795349697567.jpg",
+          "imageAlt": "Rabat marinated lamb Moroccan baguette sandwich with harissa",
+          "photoSource": "editorial-kitchen",
+          "ownerPhotoVerified": true,
+          "orderUrl": "https://www.ubereats.com/gb/store/casa-street/tuQa5hFpRaWpH0Ih5ZyeKA",
+          "deliverooUrl": "https://deliveroo.co.uk/menu/london/paddington/casa-street?srsltid=AfmBOooePdmLDxNholMsROndcaZZx_M-bRhRXBUwlzTBNua9VA3KSn4f",
+          "verifiedPrice": "£12.75",
+          "priceSourceNote": "Uber Eats"
+        },
+        {
+          "id": "fes-sandwich",
+          "name": "Fes",
+          "cityInspiration": "Fes",
+          "breadOrVessel": "Oversized Moroccan Baguette",
+          "description": "Chicken thighs, lamb liver, Moroccan salad, olives, chips, samurai sauce, and mayo.",
+          "image": "/assets/casa-street/casa_gallery_1.webp",
+          "imageAlt": "Fes Moroccan street sandwich packed with spiced grill cuts and olives",
+          "photoSource": "official-casa-street",
+          "ownerPhotoVerified": true,
+          "orderUrl": "https://www.ubereats.com/gb/store/casa-street/tuQa5hFpRaWpH0Ih5ZyeKA",
+          "deliverooUrl": "https://deliveroo.co.uk/menu/london/paddington/casa-street?srsltid=AfmBOooePdmLDxNholMsROndcaZZx_M-bRhRXBUwlzTBNua9VA3KSn4f",
+          "verifiedPrice": "£11.70",
+          "priceSourceNote": "Uber Eats"
+        }
+      ]
+    },
+    {
+      "id": "msemen-wraps",
+      "title": "Msemen, Firma Wraps & Sweet Pancakes",
+      "kicker": "Primary Street Food · Layered Msemen & Street Wraps",
+      "description": "Flaky laminated Moroccan msemen flatbread reimagined into savoury wraps, paratha-style twists, and sweet Nutella, pistachio, or amlou fillings.",
+      "priority": "primary",
+      "published": true,
+      "ownerConfirmationRequired": false,
+      "ownerConfirmed": true,
+      "items": [
+        {
+          "id": "signature-firma-wrap",
+          "name": "Signature Firma Wrap",
+          "cityInspiration": "Casa Street Signature",
+          "breadOrVessel": "Pressed Street Wrap",
+          "description": "Marinated mince, Moroccan salad, onions, chips, mayo, and sauce Tunisienne rolled hot.",
+          "image": "/src/assets/images/msemen_wrap_signature_1795349697214.jpg",
+          "imageAlt": "Casa Street Signature Firma Wrap sliced showing layered wrap and spiced fillings",
+          "photoSource": "editorial-kitchen",
+          "ownerPhotoVerified": true,
+          "orderUrl": "https://www.ubereats.com/gb/store/casa-street/tuQa5hFpRaWpH0Ih5ZyeKA",
+          "deliverooUrl": "https://deliveroo.co.uk/menu/london/paddington/casa-street?srsltid=AfmBOooePdmLDxNholMsROndcaZZx_M-bRhRXBUwlzTBNua9VA3KSn4f",
+          "verifiedPrice": "£11.00",
+          "priceSourceNote": "Uber Eats"
+        },
+        {
+          "id": "sweet-msemen",
+          "name": "Msemen (Nutella, Pistachio, or Amlou)",
+          "cityInspiration": "Moroccan Griddle Classic",
+          "breadOrVessel": "Flaky Layered Msemen",
+          "description": "Golden pan-griddled Moroccan layered flatbread served with Nutella, pistachio, or traditional Moroccan amlou (also featuring signature Dubai chocolate-filled Msemen at The Food District).",
+          "image": "/src/assets/images/msemen_wrap_signature_1795349697214.jpg",
+          "imageAlt": "Flaky layered Moroccan msemen flatbread served warm",
+          "photoSource": "editorial-kitchen",
+          "ownerPhotoVerified": true,
+          "orderUrl": "https://www.ubereats.com/gb/store/casa-street/tuQa5hFpRaWpH0Ih5ZyeKA",
+          "deliverooUrl": "https://deliveroo.co.uk/menu/london/paddington/casa-street?srsltid=AfmBOooePdmLDxNholMsROndcaZZx_M-bRhRXBUwlzTBNua9VA3KSn4f",
+          "verifiedPrice": "£7.50",
+          "priceSourceNote": "Uber Eats / Deliveroo Paddington"
+        }
+      ]
+    },
+    {
+      "id": "tagines",
+      "title": "Tagines, Moroccan Mint Tea & Drinks",
+      "kicker": "Secondary Classics · Slow-Cooked Pots & Refreshments",
+      "description": "Traditional Moroccan chicken tagine alongside authentic fresh mint tea, Royal Avocado Juice, and Maghrebi sodas (Poms, Slim Citron, Hammoud, Hawai).",
+      "priority": "secondary",
+      "published": true,
+      "ownerConfirmationRequired": false,
+      "ownerConfirmed": true,
+      "items": [
+        {
+          "id": "chicken-tajine",
+          "name": "Chicken Tajine",
+          "cityInspiration": "Homestyle Tagine",
+          "breadOrVessel": "Traditional Earthenware Tagine",
+          "description": "Slow-cooked Moroccan chicken tagine simmered with classic herbs, preserved lemon notes, and saffron aromatics.",
+          "image": "/src/assets/images/tagine_secondary_1795349697935.jpg",
+          "imageAlt": "Traditional Moroccan chicken tagine cooked in clay earthenware",
+          "photoSource": "editorial-kitchen",
+          "ownerPhotoVerified": true,
+          "orderUrl": "https://www.ubereats.com/gb/store/casa-street/tuQa5hFpRaWpH0Ih5ZyeKA",
+          "deliverooUrl": "https://deliveroo.co.uk/menu/london/paddington/casa-street?srsltid=AfmBOooePdmLDxNholMsROndcaZZx_M-bRhRXBUwlzTBNua9VA3KSn4f",
+          "verifiedPrice": "£16.75",
+          "priceSourceNote": "Uber Eats"
+        },
+        {
+          "id": "moroccan-mint-tea",
+          "name": "Moroccan Mint Tea & Cold Drinks",
+          "cityInspiration": "Maghrebi Refreshments",
+          "breadOrVessel": "Fresh Mint Tea · Juices & Sodas",
+          "description": "Traditional hot tea infused with fresh mint leaves (£4.00 Uber Eats / £2.50 Deliveroo), plus Royal Avocado Juice (£5.50–£6.50), Poms, Slim Citron, Hammoud, and Hawai.",
+          "image": "/assets/casa-street/casa_gallery_2.jpg",
+          "imageAlt": "Authentic Casa Street Moroccan mint tea poured in ornate glasses with silver teapot",
+          "photoSource": "official-casa-street",
+          "ownerPhotoVerified": true,
+          "orderUrl": "https://www.ubereats.com/gb/store/casa-street/tuQa5hFpRaWpH0Ih5ZyeKA",
+          "deliverooUrl": "https://deliveroo.co.uk/menu/london/paddington/casa-street?srsltid=AfmBOooePdmLDxNholMsROndcaZZx_M-bRhRXBUwlzTBNua9VA3KSn4f",
+          "verifiedPrice": "£2.00 – £6.50",
+          "priceSourceNote": "Deliveroo & Uber Eats"
+        }
+      ]
+    },
+    {
+      "id": "french-tacos",
+      "title": "French Tacos",
+      "kicker": "Unpublished Draft · Owner Confirmation Required",
+      "description": "Pressed rectangular street-grill wraps packed with seasoned fillings, fries inside, and creamy sauce. Kept hidden from public diners until Casa Street confirms kitchen availability.",
+      "priority": "conditional",
+      "published": false,
+      "ownerConfirmationRequired": true,
+      "ownerConfirmed": false,
+      "warningNote": "Do not confuse Casa Street with The Taco House (a separate vendor at The Food District). Publish only after Casa Street owner confirms French Tacos are sold.",
+      "items": [
+        {
+          "id": "casa-french-tacos-draft",
+          "name": "Moroccan-Style French Tacos (Draft)",
+          "cityInspiration": "Casablanca-Lyon Street Grill",
+          "breadOrVessel": "Pressed Tortilla Gratinée",
+          "description": "Awaiting owner menu confirmation and live Deliveroo / Uber Eats listing alignment before public release.",
+          "image": "/src/assets/images/french_tacos_draft_1795349698219.jpg",
+          "imageAlt": "Toasted rectangular French tacos wrap sliced in half on dark kitchen tray",
+          "photoSource": "editorial-kitchen",
+          "ownerPhotoVerified": false,
+          "orderUrl": "https://www.ubereats.com/gb/store/casa-street/tuQa5hFpRaWpH0Ih5ZyeKA",
+          "deliverooUrl": "https://deliveroo.co.uk/menu/london/paddington/casa-street?srsltid=AfmBOooePdmLDxNholMsROndcaZZx_M-bRhRXBUwlzTBNua9VA3KSn4f"
+        }
+      ]
+    }
+  ],
+  "socialPosts": [
+    {
+      "id": "post-casablanca-real",
+      "platform": "instagram",
+      "title": "Real Food District Baguettes",
+      "caption": "Authentic Casa Street baguettes from 145–147 Edgware Road: kofta, merguez, olives, tomato, harissa, and Moroccan salad.",
+      "mediaUrl": "/assets/casa-street/casa_gallery_1.webp",
+      "mediaAlt": "Real Casa Street Moroccan baguette sandwiches from The Food District",
+      "mediaType": "image",
+      "postUrl": "https://www.instagram.com/casastreetldn/",
+      "approved": true,
+      "ownerSupplied": true,
+      "verifiedByAi": true,
+      "aspectLabel": "Official Photo · @casastreetldn"
+    },
+    {
+      "id": "post-mint-tea-real",
+      "platform": "instagram",
+      "title": "Traditional Moroccan Mint Tea",
+      "caption": "Freshly brewed Moroccan mint tea served in ornate glasses straight from our Paddington counter.",
+      "mediaUrl": "/assets/casa-street/casa_gallery_2.jpg",
+      "mediaAlt": "Real Casa Street Moroccan mint tea glasses and silver teapot",
+      "mediaType": "image",
+      "postUrl": "https://www.instagram.com/casastreetldn/",
+      "approved": true,
+      "ownerSupplied": true,
+      "verifiedByAi": true,
+      "aspectLabel": "Official Photo · Paddington W2"
+    },
+    {
+      "id": "post-msemen-fold",
+      "platform": "instagram",
+      "title": "Flaky Msemen & Firma Wraps",
+      "caption": "Golden laminated Moroccan msemen griddled fresh and paired with spiced street fillings or sweet Nutella, pistachio, and amlou.",
+      "mediaUrl": "/src/assets/images/msemen_wrap_signature_1795349697214.jpg",
+      "mediaAlt": "Golden laminated Moroccan msemen wrap sliced diagonally",
+      "mediaType": "video",
+      "videoEmbedUrl": "",
+      "postUrl": "https://www.instagram.com/casastreetldn/",
+      "approved": true,
+      "ownerSupplied": true,
+      "verifiedByAi": true,
+      "aspectLabel": "Instagram Reel · Griddle Watch"
+    },
+    {
+      "id": "post-draft-tacos",
+      "platform": "instagram",
+      "title": "French Tacos Test Kitchen (Draft)",
+      "caption": "Unpublished test shot awaiting Casa Street owner confirmation before going live.",
+      "mediaUrl": "/src/assets/images/french_tacos_draft_1795349698219.jpg",
+      "mediaAlt": "Draft French tacos test kitchen preview",
+      "mediaType": "image",
+      "postUrl": "https://www.instagram.com/casastreetldn/",
+      "approved": false,
+      "ownerSupplied": true,
+      "verifiedByAi": false,
+      "aspectLabel": "Draft · Awaiting Approval"
+    }
+  ],
+  "approvalLog": [
+    {
+      "id": "log-1",
+      "timestamp": "2026-11-22T09:00:00Z",
+      "actor": "Casa Street CMS",
+      "action": "Verified primary links & logo",
+      "target": "Official Logo, Instagram (@casastreetldn), Google Maps, Uber Eats, Deliveroo Paddington"
+    },
+    {
+      "id": "log-2",
+      "timestamp": "2026-11-22T09:05:00Z",
+      "actor": "Compliance Gate",
+      "action": "Held category as unpublished draft",
+      "target": "French Tacos (pending owner confirmation; separate from The Taco House)"
+    }
+  ]
+}
