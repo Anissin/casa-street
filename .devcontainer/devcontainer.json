@@ -1,0 +1,18 @@
+{
+  "name": "Casa Street preview (with admin)",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "postCreateCommand": "npm install --no-audit --no-fund",
+  "postAttachCommand": {
+    "site": "DISABLE_HMR=true PORT=3000 npm run dev"
+  },
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "Casa Street website",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "hostRequirements": {
+    "cpus": 2
+  }
+}

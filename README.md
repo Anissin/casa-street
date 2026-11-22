@@ -13,6 +13,20 @@ npm run build          # production bundle in dist/
 npm start              # production server (NODE_ENV=production) on $PORT or 3000
 ```
 
+## Preview the site with the admin (GitHub Codespaces)
+
+Vercel can't run the admin, so use a Codespace to try it (runs in the browser, no install):
+
+1. On GitHub open the repo → green **Code** button → **Codespaces** → **Create codespace on main**.
+2. Wait for setup (about a minute). The site opens in a new tab and the terminal shows a
+   box with a **one-time admin passcode**.
+3. On the site press **Ctrl+Shift+C** (Mac: **Cmd+Shift+C**), or add `/#owner` to the
+   address, and enter the passcode.
+
+The preview link is private to your GitHub account. Changes you make there are saved only
+inside that Codespace; they don't change the live Vercel site. If the tab doesn't open,
+use the **Ports** tab → port 3000 → globe icon.
+
 ## Checks
 
 ```bash

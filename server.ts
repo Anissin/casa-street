@@ -472,10 +472,25 @@ export function attachProductionSite(app: express.Express, distDir: string, site
   });
 }
 
+/**
+ * Production requires OWNER_CMS_TOKEN. For local / Codespaces previews (not
+ * production) a random one-time passcode is generated and printed in the
+ * terminal, so the admin can be tried without configuring secrets.
+ */
+export function resolveOwnerToken(
+  configured: string | undefined,
+  isProduction: boolean
+): { token: string; generated: boolean } {
+  if (configured) return { token: configured, generated: false };
+  if (isProduction) return { token: '', generated: false };
+  return { token: crypto.randomBytes(9).toString('base64url'), generated: true };
+}
+
 async function startServer() {
   const isProduction = process.env.NODE_ENV === 'production';
+  const owner = resolveOwnerToken(process.env.OWNER_CMS_TOKEN, isProduction);
   const { app, siteUrl } = createApp({
-    ownerToken: process.env.OWNER_CMS_TOKEN,
+    ownerToken: owner.token,
     dataFile: path.resolve(process.cwd(), process.env.CMS_DATA_FILE || '.casa-cms-state.json'),
     uploadsDir: path.resolve(process.cwd(), process.env.UPLOADS_DIR || '.casa-uploads'),
     isProduction,
@@ -498,7 +513,27 @@ async function startServer() {
   const port = Number(process.env.PORT || 3000);
   app.listen(port, '0.0.0.0', () => {
     console.log(`Casa Street server running at http://localhost:${port}`);
-    if (!process.env.OWNER_CMS_TOKEN) {
+    if (owner.generated) {
+      const box = [
+        'ADMIN PREVIEW',
+        'Open the site, press Ctrl+Shift+C (Mac: Cmd+Shift+C)',
+        'or add /#owner to the address, then enter this passcode:',
+        '',
+        `    ${owner.token}`,
+        '',
+        '(one-time passcode for this preview session only)',
+      ];
+      const width = Math.max(...box.map((l) => l.length)) + 4;
+      console.log(
+        [
+          '',
+          `  ┌${'─'.repeat(width)}┐`,
+          ...box.map((line) => `  │  ${line.padEnd(width - 2)}│`),
+          `  └${'─'.repeat(width)}┘`,
+          '',
+        ].join('\n')
+      );
+    } else if (!owner.token) {
       console.log('Owner Studio is read-only: set OWNER_CMS_TOKEN to enable saving.');
     }
   });

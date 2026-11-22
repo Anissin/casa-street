@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { execFileSync } from 'node:child_process';
-import { attachProductionSite, createApp, type AppOptions } from './server.ts';
+import { attachProductionSite, createApp, resolveOwnerToken, type AppOptions } from './server.ts';
 import { createInitialCmsState } from './src/lib/cms.ts';
 
 const TOKEN = 'correct-horse-battery-staple';
@@ -265,4 +265,14 @@ test('Production start path: plain Node can load server.ts (no tsx)', () => {
     { cwd: path.dirname(new URL(import.meta.url).pathname), encoding: 'utf-8', env: { ...process.env, NODE_OPTIONS: '' } }
   );
   assert.equal(out, 'loaded');
+});
+
+test('Owner passcode: required in production, auto-generated only for previews', () => {
+  assert.deepEqual(resolveOwnerToken(undefined, true), { token: '', generated: false });
+  assert.deepEqual(resolveOwnerToken('my-own-passcode-123', true), { token: 'my-own-passcode-123', generated: false });
+  const a = resolveOwnerToken(undefined, false);
+  const b = resolveOwnerToken(undefined, false);
+  assert.equal(a.generated, true);
+  assert.ok(a.token.length >= 12);
+  assert.notEqual(a.token, b.token);
 });
