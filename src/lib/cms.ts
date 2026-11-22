@@ -1,3 +1,13 @@
+import {
+  findTextProblem,
+  hostMatches,
+  isAllowedOrderUrl,
+  isSafeHttpsUrl,
+  isValidPrice,
+} from './contentSafety.ts';
+
+export { findTextProblem, hostMatches, isAllowedOrderUrl, isSafeHttpsUrl, isValidPrice };
+
 export const VERIFIED_INSTAGRAM_URL = 'https://www.instagram.com/casastreetldn/';
 export const VERIFIED_GOOGLE_MAPS_URL =
   'https://www.google.com/maps/search/?api=1&query=51.5175157%2C-0.1672527&query_place_id=ChIJB92CagAbdkgR-Uo59s_L3G0';
@@ -9,7 +19,7 @@ export const VERIFIED_DELIVEROO_URL =
 export const CASA_LOGO_URL = '/images/logo-192.webp';
 
 /** Bump when the persisted CMS shape or default content changes meaningfully. */
-export const CMS_SCHEMA_VERSION = 3;
+export const CMS_SCHEMA_VERSION = 4;
 
 export const CASA_COORDS = {
   latitude: 51.5175157,
@@ -66,6 +76,8 @@ export interface MenuItem {
   priceSourceNote?: string;
   /** Owner-confirmed halal dish. Only shown publicly while halal.ownerConfirmed is true. */
   halal?: boolean;
+  /** Temporarily hidden from the public menu (e.g. sold out). */
+  hidden?: boolean;
 }
 
 export interface MenuCategory {
@@ -615,24 +627,6 @@ export interface ValidationResult {
   error?: string;
 }
 
-/** True when `host` is `domain` itself or a subdomain of it (never a look-alike). */
-export function hostMatches(host: string, domain: string): boolean {
-  const h = host.toLowerCase().replace(/\.$/, '');
-  return h === domain || h.endsWith(`.${domain}`);
-}
-
-export function isSafeHttpsUrl(raw: string, allowedDomains?: string[]): boolean {
-  let parsed: URL;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    return false;
-  }
-  if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return false;
-  if (!allowedDomains) return true;
-  return allowedDomains.some((d) => hostMatches(parsed.hostname, d));
-}
-
 const MAX_DATA_URL_LENGTH = 1_600_000; // ≈1.2 MB of image data
 const SAME_ORIGIN_PATH = /^\/(?!\/)[\w\-./%]+$/;
 const DATA_IMAGE_URL = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
@@ -768,7 +762,8 @@ export function getPublicMenuCategories(state: CmsState): MenuCategory[] {
       if (cat.ownerConfirmationRequired && !cat.ownerConfirmed) return false;
       return true;
     })
-    .slice()
+    .map((cat) => ({ ...cat, items: cat.items.filter((item) => !item.hidden) }))
+    .filter((cat) => cat.items.length > 0)
     .sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 }
 
@@ -1071,6 +1066,371 @@ export function setMenuItemHalal(
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Menu editing (admin): validation shared by the editor and the server       */
+/* -------------------------------------------------------------------------- */
+
+export const MAX_ITEMS_PER_CATEGORY = 40;
+const ITEM_ID = /^[a-z0-9][a-z0-9-]{1,59}$/;
+const SRCSET = /^\/(?!\/)[\w\-./%]+ \d+w(?:, \/(?!\/)[\w\-./%]+ \d+w)*$/;
+
+/** Editable fields of a dish, as entered in the admin editor. */
+export interface MenuItemInput {
+  id?: string;
+  name: string;
+  description: string;
+  cityInspiration: string;
+  breadOrVessel: string;
+  verifiedPrice: string;
+  priceSourceNote: string;
+  image: string;
+  imageSrcSet?: string;
+  imageAlt: string;
+  imageIsIllustrative: boolean;
+  halal: boolean;
+  hidden: boolean;
+  orderUrl: string;
+  deliverooUrl: string;
+}
+
+export type MenuItemErrors = Partial<Record<keyof MenuItemInput, string>>;
+
+export function menuItemToInput(item: MenuItem): MenuItemInput {
+  return {
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    cityInspiration: item.cityInspiration ?? '',
+    breadOrVessel: item.breadOrVessel,
+    verifiedPrice: item.verifiedPrice ?? '',
+    priceSourceNote: item.priceSourceNote ?? '',
+    image: item.image,
+    imageSrcSet: item.imageSrcSet,
+    imageAlt: item.imageAlt,
+    imageIsIllustrative: Boolean(item.imageIsIllustrative),
+    halal: Boolean(item.halal),
+    hidden: Boolean(item.hidden),
+    orderUrl: item.orderUrl,
+    deliverooUrl: item.deliverooUrl ?? '',
+  };
+}
+
+export function emptyMenuItemInput(): MenuItemInput {
+  return {
+    name: '',
+    description: '',
+    cityInspiration: '',
+    breadOrVessel: '',
+    verifiedPrice: '',
+    priceSourceNote: 'Uber Eats',
+    image: '',
+    imageAlt: '',
+    imageIsIllustrative: false,
+    halal: true,
+    hidden: false,
+    orderUrl: VERIFIED_UBEREATS_URL,
+    deliverooUrl: VERIFIED_DELIVEROO_URL,
+  };
+}
+
+function checkText(
+  errors: Record<string, string>,
+  field: string,
+  value: string,
+  { label, max, required = false }: { label: string; max: number; required?: boolean }
+): string {
+  // eslint-disable-next-line no-control-regex
+  const clean = value.replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (required && !clean) {
+    errors[field] = `${label} is required.`;
+  } else if (clean.length > max) {
+    errors[field] = `${label} must be ${max} characters or fewer.`;
+  } else {
+    const problem = findTextProblem(clean);
+    if (problem) errors[field] = problem;
+  }
+  return clean;
+}
+
+/**
+ * Validates and normalises a dish. Returns the MenuItem when valid, otherwise
+ * per-field errors. Used by the admin editor and enforced again by the server.
+ */
+export function validateMenuItemInput(
+  input: MenuItemInput,
+  existing?: Pick<MenuItem, 'photoSource' | 'ownerPhotoVerified' | 'image'>
+): { item: MenuItem | null; errors: MenuItemErrors } {
+  const errors: Record<string, string> = {};
+  const name = checkText(errors, 'name', input.name, { label: 'Dish name', max: 60, required: true });
+  const description = checkText(errors, 'description', input.description, {
+    label: 'Description',
+    max: 400,
+    required: true,
+  });
+  const cityInspiration = checkText(errors, 'cityInspiration', input.cityInspiration, {
+    label: 'Small label',
+    max: 40,
+  });
+  const breadOrVessel = checkText(errors, 'breadOrVessel', input.breadOrVessel, {
+    label: 'Bread / style',
+    max: 60,
+  });
+  const priceSourceNote = checkText(errors, 'priceSourceNote', input.priceSourceNote, {
+    label: 'Price note',
+    max: 60,
+  });
+  const imageAlt = checkText(errors, 'imageAlt', input.imageAlt, { label: 'Photo description', max: 160 });
+
+  const verifiedPrice = input.verifiedPrice.trim();
+  if (verifiedPrice && !isValidPrice(verifiedPrice)) {
+    errors.verifiedPrice = 'Use a price like £11.70, or a range like £2.00 – £6.50.';
+  }
+
+  const orderUrl = input.orderUrl.trim() || VERIFIED_UBEREATS_URL;
+  if (!isAllowedOrderUrl(orderUrl, 'ubereats')) {
+    errors.orderUrl = 'Must be an https:// link on ubereats.com.';
+  }
+  const deliverooUrl = input.deliverooUrl.trim();
+  if (deliverooUrl && !isAllowedOrderUrl(deliverooUrl, 'deliveroo')) {
+    errors.deliverooUrl = 'Must be an https:// link on deliveroo.co.uk (or leave empty).';
+  }
+
+  const image = input.image.trim();
+  if (image && !isSafeImageSource(image)) {
+    errors.image = 'Upload the photo again (only photos uploaded here are allowed).';
+  }
+  const imageSrcSet = input.imageSrcSet && SRCSET.test(input.imageSrcSet) ? input.imageSrcSet : undefined;
+
+  const id = input.id && ITEM_ID.test(input.id) ? input.id : '';
+
+  if (Object.keys(errors).length > 0) return { item: null, errors };
+
+  const photoChanged = !existing || existing.image !== image;
+  return {
+    errors: {},
+    item: {
+      id: id || `item-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      name,
+      description,
+      ...(cityInspiration ? { cityInspiration } : {}),
+      breadOrVessel,
+      image,
+      ...(image && imageSrcSet && !photoChanged ? { imageSrcSet } : {}),
+      imageAlt: image ? imageAlt || name : '',
+      ...(image && input.imageIsIllustrative ? { imageIsIllustrative: true } : {}),
+      photoSource: !image
+        ? 'pending-owner-photo'
+        : photoChanged
+          ? 'official-casa-street'
+          : (existing?.photoSource ?? 'official-casa-street'),
+      ownerPhotoVerified: image ? (photoChanged ? true : (existing?.ownerPhotoVerified ?? true)) : false,
+      orderUrl,
+      ...(deliverooUrl ? { deliverooUrl } : {}),
+      ...(verifiedPrice ? { verifiedPrice } : {}),
+      ...(priceSourceNote ? { priceSourceNote } : {}),
+      ...(input.halal ? { halal: true } : {}),
+      ...(input.hidden ? { hidden: true } : {}),
+    },
+  };
+}
+
+export interface CategoryTextInput {
+  title: string;
+  kicker: string;
+  description: string;
+}
+
+export function validateCategoryText(input: CategoryTextInput): {
+  value: CategoryTextInput | null;
+  errors: Partial<Record<keyof CategoryTextInput, string>>;
+} {
+  const errors: Record<string, string> = {};
+  const title = checkText(errors, 'title', input.title, { label: 'Section title', max: 60, required: true });
+  const kicker = checkText(errors, 'kicker', input.kicker, { label: 'Small label', max: 60 });
+  const description = checkText(errors, 'description', input.description, {
+    label: 'Section description',
+    max: 300,
+  });
+  return Object.keys(errors).length
+    ? { value: null, errors }
+    : { value: { title, kicker, description }, errors: {} };
+}
+
+function findItem(state: CmsState, itemId: string) {
+  for (const cat of state.menuCategories) {
+    const item = cat.items.find((i) => i.id === itemId);
+    if (item) return { cat, item };
+  }
+  return null;
+}
+
+/** Adds a new dish (or replaces one with the same id) in a category. */
+export function upsertMenuItem(
+  state: CmsState,
+  categoryId: MenuCategoryId,
+  item: MenuItem,
+  actor = 'Casa Street Owner'
+): CmsState {
+  const existing = findItem(state, item.id);
+  const nextCategories = state.menuCategories.map((cat) => {
+    if (cat.id === categoryId) {
+      const index = cat.items.findIndex((i) => i.id === item.id);
+      const items =
+        index >= 0
+          ? cat.items.map((i) => (i.id === item.id ? item : i))
+          : [...cat.items, item].slice(0, MAX_ITEMS_PER_CATEGORY);
+      return { ...cat, items };
+    }
+    // Moving a dish to another category removes it from the old one.
+    return { ...cat, items: cat.items.filter((i) => i.id !== item.id) };
+  });
+  return {
+    ...state,
+    menuCategories: nextCategories,
+    approvalLog: [logEntry(actor, existing ? 'Edited dish' : 'Added new dish', item.name), ...state.approvalLog],
+  };
+}
+
+export function deleteMenuItem(state: CmsState, itemId: string, actor = 'Casa Street Owner'): CmsState {
+  const found = findItem(state, itemId);
+  if (!found) return state;
+  return {
+    ...state,
+    menuCategories: state.menuCategories.map((cat) => ({
+      ...cat,
+      items: cat.items.filter((i) => i.id !== itemId),
+    })),
+    approvalLog: [logEntry(actor, 'Deleted dish', found.item.name), ...state.approvalLog],
+  };
+}
+
+export function moveMenuItem(state: CmsState, itemId: string, direction: -1 | 1): CmsState {
+  return {
+    ...state,
+    menuCategories: state.menuCategories.map((cat) => {
+      const index = cat.items.findIndex((i) => i.id === itemId);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= cat.items.length) return cat;
+      const items = cat.items.slice();
+      [items[index], items[target]] = [items[target], items[index]];
+      return { ...cat, items };
+    }),
+  };
+}
+
+export function setMenuItemHidden(
+  state: CmsState,
+  itemId: string,
+  hidden: boolean,
+  actor = 'Casa Street Owner'
+): CmsState {
+  const found = findItem(state, itemId);
+  if (!found) return state;
+  return {
+    ...state,
+    menuCategories: state.menuCategories.map((cat) => ({
+      ...cat,
+      items: cat.items.map((i) => {
+        if (i.id !== itemId) return i;
+        const { hidden: _omit, ...rest } = i;
+        return hidden ? { ...rest, hidden: true } : rest;
+      }),
+    })),
+    approvalLog: [
+      logEntry(actor, hidden ? 'Hid dish from menu' : 'Showed dish on menu', found.item.name),
+      ...state.approvalLog,
+    ],
+  };
+}
+
+export function updateCategoryText(
+  state: CmsState,
+  categoryId: MenuCategoryId,
+  text: CategoryTextInput,
+  actor = 'Casa Street Owner'
+): CmsState {
+  return {
+    ...state,
+    menuCategories: state.menuCategories.map((cat) => (cat.id === categoryId ? { ...cat, ...text } : cat)),
+    approvalLog: [logEntry(actor, 'Edited menu section', text.title), ...state.approvalLog],
+  };
+}
+
+function rawToMenuItemInput(raw: Record<string, unknown>): MenuItemInput {
+  return {
+    id: str(raw.id),
+    name: str(raw.name),
+    description: str(raw.description),
+    cityInspiration: str(raw.cityInspiration),
+    breadOrVessel: str(raw.breadOrVessel),
+    verifiedPrice: str(raw.verifiedPrice),
+    priceSourceNote: str(raw.priceSourceNote),
+    image: str(raw.image),
+    imageSrcSet: typeof raw.imageSrcSet === 'string' ? raw.imageSrcSet : undefined,
+    imageAlt: str(raw.imageAlt),
+    imageIsIllustrative: raw.imageIsIllustrative === true,
+    halal: raw.halal === true,
+    hidden: raw.hidden === true,
+    orderUrl: str(raw.orderUrl),
+    deliverooUrl: str(raw.deliverooUrl),
+  };
+}
+
+const PHOTO_SOURCES: MenuItem['photoSource'][] = ['official-casa-street', 'editorial-kitchen', 'pending-owner-photo'];
+
+/** Rebuilds a stored dish; invalid or link-injected dishes are dropped. */
+function sanitizeStoredMenuItem(raw: Record<string, unknown>): MenuItem | null {
+  const input = rawToMenuItemInput(raw);
+  if (!input.id || !ITEM_ID.test(input.id)) return null;
+  const photoSource = PHOTO_SOURCES.includes(raw.photoSource as MenuItem['photoSource'])
+    ? (raw.photoSource as MenuItem['photoSource'])
+    : 'official-casa-street';
+  const { item } = validateMenuItemInput(input, {
+    image: input.image,
+    photoSource,
+    ownerPhotoVerified: raw.ownerPhotoVerified === true,
+  });
+  return item;
+}
+
+/**
+ * Lists every piece of submitted content that would be rejected, so the
+ * server can refuse the whole save with a clear message instead of silently
+ * dropping the owner's work.
+ */
+export function findCmsContentProblems(input: unknown): string[] {
+  if (!isRecord(input)) return ['Invalid content.'];
+  const problems: string[] = [];
+  for (const cat of records(input.menuCategories)) {
+    const text = validateCategoryText({
+      title: str(cat.title),
+      kicker: str(cat.kicker),
+      description: str(cat.description),
+    });
+    for (const msg of Object.values(text.errors)) problems.push(`Section "${str(cat.title) || str(cat.id)}": ${msg}`);
+    const items = records(cat.items);
+    if (items.length > MAX_ITEMS_PER_CATEGORY) {
+      problems.push(`Section "${str(cat.title)}": at most ${MAX_ITEMS_PER_CATEGORY} dishes.`);
+    }
+    for (const raw of items) {
+      const inputItem = rawToMenuItemInput(raw);
+      if (!inputItem.id || !ITEM_ID.test(inputItem.id)) {
+        problems.push(`Dish "${inputItem.name || '(unnamed)'}": invalid id.`);
+        continue;
+      }
+      const { errors } = validateMenuItemInput(inputItem, { image: inputItem.image, photoSource: 'official-casa-street', ownerPhotoVerified: true });
+      for (const msg of Object.values(errors)) problems.push(`Dish "${inputItem.name || inputItem.id}": ${msg}`);
+    }
+  }
+  for (const post of records(input.socialPosts)) {
+    for (const field of ['title', 'caption'] as const) {
+      const problem = findTextProblem(str(post[field]));
+      if (problem) problems.push(`Photo post "${str(post.title)}": ${problem}`);
+    }
+  }
+  return problems;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Normalisation: the single gate for any CMS state from disk or the network  */
 /* -------------------------------------------------------------------------- */
 
@@ -1089,6 +1449,10 @@ function cleanText(value: unknown, max: number): string | undefined {
   return value.replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, max);
 }
 
+function str(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
 function records(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? value.filter(isRecord) : [];
 }
@@ -1096,8 +1460,10 @@ function records(value: unknown): Record<string, unknown>[] {
 function sanitizeOwnerPost(raw: Record<string, unknown>): SocialPost | null {
   const id = typeof raw.id === 'string' ? raw.id : '';
   const title = cleanText(raw.title, 80);
+  const caption = cleanText(raw.caption, 280) ?? '';
   const mediaUrl = typeof raw.mediaUrl === 'string' ? raw.mediaUrl : '';
   if (!OWNER_POST_ID.test(id) || !title || !isSafeImageSource(mediaUrl)) return null;
+  if (findTextProblem(title) || findTextProblem(caption)) return null;
 
   const videoRaw = typeof raw.videoEmbedUrl === 'string' ? raw.videoEmbedUrl : '';
   const videoEmbedUrl =
@@ -1113,7 +1479,7 @@ function sanitizeOwnerPost(raw: Record<string, unknown>): SocialPost | null {
     id,
     platform: raw.platform === 'tiktok' ? 'tiktok' : 'instagram',
     title,
-    caption: cleanText(raw.caption, 280) || 'Fresh from Casa Street London.',
+    caption: caption || 'Fresh from Casa Street London.',
     mediaUrl,
     mediaAlt: cleanText(raw.mediaAlt, 160) || `${title} — Casa Street photograph`,
     mediaType: raw.mediaType === 'video' && videoEmbedUrl ? 'video' : 'image',
@@ -1151,7 +1517,11 @@ export function normalizeCmsState(input: unknown): CmsState {
   const base = createInitialCmsState();
   if (!isRecord(input)) return base;
 
-  const isCurrentSchema = input.schemaVersion === CMS_SCHEMA_VERSION;
+  const version = typeof input.schemaVersion === 'number' ? input.schemaVersion : 1;
+  // v3+: halal settings and post approvals are owner decisions worth keeping.
+  const isCurrentSchema = version >= 3;
+  // v4+: menu text, prices, photos and dishes are owner-editable (validated).
+  const hasEditableMenu = version >= 4;
 
   // Halal settings (legacy files predate the owner confirmation → keep defaults).
   const halal: HalalSettings = { ...base.halal };
@@ -1183,8 +1553,9 @@ export function normalizeCmsState(input: unknown): CmsState {
     };
   });
 
-  // Menu: publish/confirmation flags and per-dish owner flags only.
+  // Menu: publish flags always; edited text/dishes from v4 (each field validated).
   const catsIn = records(input.menuCategories);
+  const seenItemIds = new Set<string>();
   const menuCategories = base.menuCategories.map((cat) => {
     const incoming = catsIn.find((c) => c.id === cat.id);
     if (!incoming) return cat;
@@ -1192,6 +1563,24 @@ export function normalizeCmsState(input: unknown): CmsState {
       typeof incoming.ownerConfirmed === 'boolean' ? incoming.ownerConfirmed : cat.ownerConfirmed;
     let published = typeof incoming.published === 'boolean' ? incoming.published : cat.published;
     if (cat.ownerConfirmationRequired && !ownerConfirmed) published = false;
+
+    if (hasEditableMenu) {
+      const text = validateCategoryText({
+        title: str(incoming.title),
+        kicker: str(incoming.kicker),
+        description: str(incoming.description),
+      });
+      const items = records(incoming.items)
+        .slice(0, MAX_ITEMS_PER_CATEGORY)
+        .map(sanitizeStoredMenuItem)
+        .filter((item): item is MenuItem => {
+          if (!item || seenItemIds.has(item.id)) return false;
+          seenItemIds.add(item.id);
+          return true;
+        });
+      return { ...cat, ...(text.value ?? {}), ownerConfirmed, published, items };
+    }
+
     const itemsIn = records(incoming.items);
     const items = cat.items.map((item) => {
       const inc = itemsIn.find((i) => i.id === item.id);

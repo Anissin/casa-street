@@ -77,7 +77,20 @@ export default function App() {
     }
   }, [cms]);
 
-  // The Owner Studio is reachable via the footer link or the #owner URL.
+  // Admin shortcut: Ctrl+Shift+C (Cmd+Shift+C on Mac). It only opens the
+  // passcode screen — the passcode is what protects the admin.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && e.code === 'KeyC') {
+        e.preventDefault();
+        setOwnerStudioOpen(true);
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  // Fallback for phones/tablets without a keyboard: open /#owner.
   useEffect(() => {
     const syncFromHash = () => {
       if (window.location.hash === '#owner') setOwnerStudioOpen(true);
@@ -158,7 +171,7 @@ export default function App() {
         <LocationOrderSection cms={cms} />
       </main>
 
-      <Footer cms={cms} onOpenOwnerStudio={() => setOwnerStudioOpen(true)} />
+      <Footer cms={cms} />
 
       <MobileStickyBar />
 

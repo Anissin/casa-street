@@ -13,7 +13,6 @@ import { HalalBadge } from './HalalBadge';
 
 interface FooterProps {
   cms: CmsState;
-  onOpenOwnerStudio: () => void;
 }
 
 const EXPLORE_LINKS = [
@@ -24,7 +23,7 @@ const EXPLORE_LINKS = [
   { href: '#find-us', label: 'Find Us' },
 ];
 
-export function Footer({ cms, onOpenOwnerStudio }: FooterProps) {
+export function Footer({ cms }: FooterProps) {
   const halal = getHalalDisplay(cms);
   const extraSocials = getPublicSocialLinks(cms, 'footer').filter((l) =>
     ['tiktok', 'facebook', 'whatsapp'].includes(l.platform)
@@ -128,16 +127,7 @@ export function Footer({ cms, onOpenOwnerStudio }: FooterProps) {
           <p>
             © {new Date().getFullYear()} Casa Street London · 145–147 Edgware Road, W2 2HR
           </p>
-          <a
-            href="#owner"
-            onClick={(e) => {
-              e.preventDefault();
-              onOpenOwnerStudio();
-            }}
-            className="inline-flex min-h-11 items-center self-start text-neutral-400 transition-colors hover:text-white sm:self-auto"
-          >
-            Owner login
-          </a>
+          <p>{halal.show ? 'Halal Moroccan Street Food' : 'Moroccan Street Food'} · Edgware Road</p>
         </div>
       </div>
     </footer>

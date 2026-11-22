@@ -28,25 +28,40 @@ npm test               # CMS + server security tests (node:test via tsx)
 | `SITE_URL` | Public https origin (e.g. `https://www.example.com`). Used for the canonical link, share-image URLs, `robots.txt` and `sitemap.xml`. Falls back to `APP_URL`. |
 | `GEMINI_API_KEY` | Optional. Enables the owner-only "Verify Photo with Gemini" check. |
 | `GEMINI_MODEL` | Optional model override for the photo check. |
-| `CMS_DATA_FILE` | Optional path for the saved owner settings (default `.casa-cms-state.json`). Use persistent storage in production — container filesystems are wiped on redeploy. |
+| `CMS_DATA_FILE` | Optional path for the saved menu and owner settings (default `.casa-cms-state.json`). Use persistent storage in production — container filesystems are wiped on redeploy. |
+| `UPLOADS_DIR` | Optional folder for photos uploaded in the admin (default `.casa-uploads`). Also needs persistent storage. |
 | `PORT` | Server port (default 3000). |
 
 See `.env.example`.
 
-## Owner Studio
+## Admin (Owner Studio)
 
-Open it from the **Owner login** link in the footer (or `/#owner`) and enter the
-`OWNER_CMS_TOKEN` passcode. From there the owner can:
+Press **Ctrl + Shift + C** (Mac: **Cmd + Shift + C**) anywhere on the site, or open
+`/#owner` on a phone or tablet, then enter the `OWNER_CMS_TOKEN` passcode. The
+shortcut only opens the passcode screen; the passcode is what protects the admin.
 
-- turn the **100% Halal** messaging on/off and choose which dishes carry a halal tag
-  (certification wording is optional and off by default);
-- confirm and publish the French Tacos section (hidden until confirmed);
-- verify optional TikTok / Facebook / WhatsApp links (hidden until verified);
-- upload and approve photos for the "Follow the Flavour" section.
+- **Edit Menu** — add new dishes; edit name, description, price, photo, halal tag and
+  order links; move dishes between sections; reorder, hide (e.g. sold out) or delete
+  them; edit section titles and descriptions.
+- **Halal** — turn the 100% Halal messaging on/off and choose which dishes carry a
+  halal tag (certification wording is optional and off by default).
+- **Drafts** — confirm and publish the French Tacos section (hidden until confirmed).
+- **Social Links / Follow Feed** — verify optional TikTok / Facebook / WhatsApp links
+  and upload or approve photos for "Follow the Flavour".
 
-Prices, descriptions, addresses and the official Instagram / Uber Eats / Deliveroo /
-Google Maps links live in `src/lib/cms.ts`; the server ignores attempts to change
-them through the API.
+### Link-injection protection (always on)
+
+Enforced by the server, with instant feedback in the editor
+(`src/lib/contentSafety.ts`):
+
+- dish names, descriptions, section text and captions cannot contain links, web
+  addresses (`www.`, `example.com`), `javascript:`/`data:` URLs or `<` `>` characters;
+- dish order links must be `https://` on `ubereats.com` or `deliveroo.co.uk`
+  (look-alikes such as `ubereats.com.evil.example` are rejected);
+- uploaded photos must really be JPEG/PNG/WebP (checked by file signature) and are
+  stored under `/uploads` with a content-hash file name;
+- the address, social profiles and the official Instagram / Uber Eats / Deliveroo /
+  Google Maps links are fixed in `src/lib/cms.ts` and cannot be changed via the API.
 
 ## Images
 

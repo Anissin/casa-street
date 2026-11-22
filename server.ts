@@ -5,7 +5,12 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createInitialCmsState, normalizeCmsState, type CmsState } from './src/lib/cms.ts';
+import {
+  createInitialCmsState,
+  findCmsContentProblems,
+  normalizeCmsState,
+  type CmsState,
+} from './src/lib/cms.ts';
 
 /* -------------------------------------------------------------------------- */
 /*  Configuration                                                             */
@@ -16,6 +21,8 @@ export interface AppOptions {
   ownerToken?: string;
   /** Path of the persisted CMS JSON file, or null for in-memory only (tests). */
   dataFile?: string | null;
+  /** Directory for owner-uploaded photos, or null to disable uploads. */
+  uploadsDir?: string | null;
   isProduction?: boolean;
   geminiApiKey?: string;
   geminiModel?: string;
@@ -27,6 +34,19 @@ const MIN_OWNER_TOKEN_LENGTH = 12;
 const MAX_FAILED_ATTEMPTS = 10;
 const FAILED_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 const ALLOWED_PHOTO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const MAX_UPLOAD_BYTES = 2.5 * 1024 * 1024;
+
+/** Identify an image by its real file signature (never trust the declared type). */
+function sniffImageType(buf: Buffer): 'jpg' | 'png' | 'webp' | null {
+  if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
+  if (buf.length > 8 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return 'png';
+  }
+  if (buf.length > 12 && buf.toString('latin1', 0, 4) === 'RIFF' && buf.toString('latin1', 8, 12) === 'WEBP') {
+    return 'webp';
+  }
+  return null;
+}
 
 function resolveSiteUrl(raw: string | undefined): string {
   if (!raw) return '';
@@ -143,6 +163,7 @@ function securityHeaders(isProduction: boolean) {
 export function createApp(options: AppOptions = {}) {
   const {
     dataFile = null,
+    uploadsDir = null,
     isProduction = false,
     geminiApiKey,
     geminiModel = 'gemini-4-hydrogen',
@@ -221,10 +242,69 @@ export function createApp(options: AppOptions = {}) {
       res.status(400).json({ error: 'Invalid CMS payload structure.' });
       return;
     }
+    // Link-injection protection: refuse the whole save with a clear reason.
+    const problems = findCmsContentProblems(incoming);
+    if (problems.length > 0) {
+      res.status(400).json({ error: `Not saved. ${problems[0]}`, problems: problems.slice(0, 20) });
+      return;
+    }
     currentCmsState = normalizeCmsState(incoming);
     saveCmsState(dataFile, currentCmsState);
     res.json(currentCmsState);
   });
+
+  // Owner photo upload: stored as a file (not inside the CMS JSON) so visitors
+  // don't download every photo with the menu data.
+  app.post('/api/owner/images', requireOwner, largeJson, (req, res) => {
+    if (!uploadsDir) {
+      res.status(503).json({ error: 'Photo uploads are not configured on this server.' });
+      return;
+    }
+    const dataUrl = (req.body as { dataUrl?: unknown } | undefined)?.dataUrl;
+    const match =
+      typeof dataUrl === 'string'
+        ? /^data:image\/(?:jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl)
+        : null;
+    if (!match) {
+      res.status(400).json({ error: 'Please upload a JPEG, PNG or WebP photo.' });
+      return;
+    }
+    const buf = Buffer.from(match[1], 'base64');
+    if (buf.length > MAX_UPLOAD_BYTES) {
+      res.status(413).json({ error: 'That photo is too large (max 2.5 MB after resizing).' });
+      return;
+    }
+    const ext = sniffImageType(buf);
+    if (!ext) {
+      res.status(400).json({ error: 'That file is not a valid JPEG, PNG or WebP image.' });
+      return;
+    }
+    try {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+      const name = `${crypto.createHash('sha256').update(buf).digest('hex').slice(0, 24)}.${ext}`;
+      const target = path.join(uploadsDir, name);
+      if (!fs.existsSync(target)) fs.writeFileSync(target, buf);
+      res.json({ url: `/uploads/${name}` });
+    } catch (err) {
+      console.error('Photo upload failed:', err);
+      res.status(500).json({ error: 'Could not save the photo.' });
+    }
+  });
+
+  if (uploadsDir) {
+    // Content-addressed file names → safe to cache forever.
+    app.use(
+      '/uploads',
+      express.static(uploadsDir, {
+        index: false,
+        dotfiles: 'deny',
+        fallthrough: false,
+        setHeaders(res) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        },
+      })
+    );
+  }
 
   app.post('/api/cms/reset', requireOwner, (_req, res) => {
     currentCmsState = createInitialCmsState();
@@ -333,6 +413,10 @@ Check:
       res.status(400).json({ error: 'Malformed JSON.' });
       return;
     }
+    if (err?.status === 404 || err?.status === 403) {
+      res.status(err.status).type('text/plain').send(err.status === 404 ? 'Not found' : 'Forbidden');
+      return;
+    }
     next(err);
   });
 
@@ -393,6 +477,7 @@ async function startServer() {
   const { app, siteUrl } = createApp({
     ownerToken: process.env.OWNER_CMS_TOKEN,
     dataFile: path.resolve(process.cwd(), process.env.CMS_DATA_FILE || '.casa-cms-state.json'),
+    uploadsDir: path.resolve(process.cwd(), process.env.UPLOADS_DIR || '.casa-uploads'),
     isProduction,
     geminiApiKey: process.env.GEMINI_API_KEY,
     geminiModel: process.env.GEMINI_MODEL || undefined,

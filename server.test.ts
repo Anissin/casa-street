@@ -4,10 +4,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
+import { execFileSync } from 'node:child_process';
 import { attachProductionSite, createApp, type AppOptions } from './server.ts';
 import { createInitialCmsState } from './src/lib/cms.ts';
 
 const TOKEN = 'correct-horse-battery-staple';
+// 1x1 transparent PNG
+const PNG_1PX =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
 async function withServer(
   options: AppOptions,
@@ -164,4 +168,101 @@ test('Production static site: canonical injection, caching and real 404s', async
   } finally {
     fs.rmSync(dist, { recursive: true, force: true });
   }
+});
+
+test('Link injection: saves with links in dish text or phishing order links are refused', async () => {
+  await withServer({ ownerToken: TOKEN }, async (base) => {
+    const state = createInitialCmsState();
+
+    const injected = JSON.parse(JSON.stringify(state));
+    injected.menuCategories[0].items[0].description = 'Order cheaper at www.phish.example';
+    const res = await fetch(`${base}/api/cms`, { method: 'PUT', ...json(injected, TOKEN) });
+    assert.equal(res.status, 400);
+    const body = await res.json();
+    assert.match(body.error, /Links and web addresses are not allowed/);
+
+    const phishing = JSON.parse(JSON.stringify(state));
+    phishing.menuCategories[0].items[0].orderUrl = 'https://ubereats.com.evil.example/x';
+    assert.equal((await fetch(`${base}/api/cms`, { method: 'PUT', ...json(phishing, TOKEN) })).status, 400);
+
+    const html = JSON.parse(JSON.stringify(state));
+    html.menuCategories[1].title = '<b>Wraps</b>';
+    assert.equal((await fetch(`${base}/api/cms`, { method: 'PUT', ...json(html, TOKEN) })).status, 400);
+
+    // Nothing was saved.
+    const after = await (await fetch(`${base}/api/cms`)).json();
+    assert.equal(after.menuCategories[0].items[0].description, state.menuCategories[0].items[0].description);
+
+    // A legitimate edit (new dish + new price) is saved.
+    const edited = JSON.parse(JSON.stringify(state));
+    edited.menuCategories[0].items[0].verifiedPrice = '£12.20';
+    edited.menuCategories[0].items.push({
+      id: 'item-agadir',
+      name: 'Agadir',
+      description: 'Grilled chicken and harissa mayo.',
+      breadOrVessel: 'Oversized Moroccan Baguette',
+      image: '',
+      imageAlt: '',
+      orderUrl: state.location.uberEatsUrl,
+      halal: true,
+    });
+    const ok = await fetch(`${base}/api/cms`, { method: 'PUT', ...json(edited, TOKEN) });
+    assert.equal(ok.status, 200);
+    const saved = await (await fetch(`${base}/api/cms`)).json();
+    assert.equal(saved.menuCategories[0].items[0].verifiedPrice, '£12.20');
+    assert.equal(saved.menuCategories[0].items.at(-1).name, 'Agadir');
+  });
+});
+
+test('Photo uploads: owner-only, real images only, served safely', async () => {
+  const uploads = fs.mkdtempSync(path.join(os.tmpdir(), 'casa-uploads-'));
+  try {
+    await withServer({ ownerToken: TOKEN, uploadsDir: uploads }, async (base) => {
+      const png = `data:image/png;base64,${PNG_1PX}`;
+      assert.equal((await fetch(`${base}/api/owner/images`, { method: 'POST', ...json({ dataUrl: png }) })).status, 401);
+
+      // HTML disguised as a JPEG is rejected by its file signature.
+      const fakeJpeg = `data:image/jpeg;base64,${Buffer.from('<html><script>alert(1)</script></html>').toString('base64')}`;
+      const fake = await fetch(`${base}/api/owner/images`, { method: 'POST', ...json({ dataUrl: fakeJpeg }, TOKEN) });
+      assert.equal(fake.status, 400);
+      const svg = `data:image/svg+xml;base64,${Buffer.from('<svg/>').toString('base64')}`;
+      assert.equal((await fetch(`${base}/api/owner/images`, { method: 'POST', ...json({ dataUrl: svg }, TOKEN) })).status, 400);
+
+      const ok = await fetch(`${base}/api/owner/images`, { method: 'POST', ...json({ dataUrl: png }, TOKEN) });
+      assert.equal(ok.status, 200);
+      const { url } = await ok.json();
+      assert.match(url, /^\/uploads\/[a-f0-9]{24}\.png$/);
+
+      const served = await fetch(`${base}${url}`);
+      assert.equal(served.status, 200);
+      assert.equal(served.headers.get('content-type'), 'image/png');
+      assert.equal(served.headers.get('x-content-type-options'), 'nosniff');
+      assert.match(served.headers.get('cache-control') ?? '', /immutable/);
+
+      assert.equal((await fetch(`${base}/uploads/missing.png`)).status, 404);
+      const traversal = await fetch(`${base}/uploads/..%2f..%2fpackage.json`);
+      assert.ok([403, 404].includes(traversal.status));
+      assert.doesNotMatch(await traversal.text(), /casa-street/);
+    });
+    await withServer({ ownerToken: TOKEN, uploadsDir: null }, async (base) => {
+      const res = await fetch(`${base}/api/owner/images`, {
+        method: 'POST',
+        ...json({ dataUrl: `data:image/png;base64,${PNG_1PX}` }, TOKEN),
+      });
+      assert.equal(res.status, 503);
+    });
+  } finally {
+    fs.rmSync(uploads, { recursive: true, force: true });
+  }
+});
+
+test('Production start path: plain Node can load server.ts (no tsx)', () => {
+  // `npm start` runs `node server.ts` with type stripping, which needs explicit
+  // .ts extensions on every server-side import. This guards against regressions.
+  const out = execFileSync(
+    process.execPath,
+    ['--no-warnings', '-e', "import('./server.ts').then(() => process.stdout.write('loaded'))"],
+    { cwd: path.dirname(new URL(import.meta.url).pathname), encoding: 'utf-8', env: { ...process.env, NODE_OPTIONS: '' } }
+  );
+  assert.equal(out, 'loaded');
 });

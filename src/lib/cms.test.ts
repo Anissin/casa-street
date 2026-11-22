@@ -8,6 +8,18 @@ import {
   confirmAndPublishCategory,
   CMS_SCHEMA_VERSION,
   createInitialCmsState,
+  deleteMenuItem,
+  emptyMenuItemInput,
+  findCmsContentProblems,
+  findTextProblem,
+  isAllowedOrderUrl,
+  menuItemToInput,
+  moveMenuItem,
+  setMenuItemHidden,
+  updateCategoryText,
+  upsertMenuItem,
+  validateCategoryText,
+  validateMenuItemInput,
   getApprovedSocialPosts,
   getHalalDisplay,
   getPublicMenuCategories,
@@ -244,11 +256,19 @@ test('normalizeCmsState rejects tampered content and keeps only validated owner 
   // French Tacos cannot be published without owner confirmation.
   tampered.menuCategories.find((c: { id: string }) => c.id === 'french-tacos').published = true;
 
+  // Injected links / phishing order links make a dish invalid → dropped.
+  tampered.menuCategories[0].items[1].description = 'Great! Order at http://phish.example now';
+  tampered.menuCategories[0].items[2].orderUrl = 'https://ubereats.com.evil.example/x';
+
   const clean = normalizeCmsState(tampered);
   assert.equal(clean.brand.name, 'Casa Street');
   assert.equal(clean.location.uberEatsUrl, VERIFIED_UBEREATS_URL);
   assert.equal(clean.socialLinks[0].url, VERIFIED_INSTAGRAM_URL);
-  assert.equal(clean.menuCategories[0].items[0].verifiedPrice, '£11.70');
+  // Prices are owner-editable (behind the passcode) and validated as prices.
+  assert.equal(clean.menuCategories[0].items[0].verifiedPrice, '£0.01');
+  const ids = clean.menuCategories[0].items.map((i) => i.id);
+  assert.equal(ids.includes('tangier-sandwich'), false);
+  assert.equal(ids.includes('marrakesh-sandwich'), false);
   assert.equal(getPublicSocialLinks(clean, 'follow').some((l) => l.platform === 'tiktok'), false);
   assert.equal(getPublicMenuCategories(clean).some((c) => c.id === 'french-tacos'), false);
   assert.equal(clean.socialPosts.some((p) => p.id === 'post-1795349698219'), false);
@@ -298,4 +318,129 @@ test('Structured data marks only halal-tagged dishes with HalalDiet', () => {
   assert.equal(noHalal.servesCuisine.includes('Halal'), false);
   assert.equal(JSON.stringify(noHalal).includes('HalalDiet'), false);
   assert.equal('url' in noHalal, false);
+});
+
+test('Link protection: text fields reject links, web addresses, scripts and HTML', () => {
+  const bad = [
+    'Order at https://phish.example',
+    'see www.example.com',
+    'visit casa-deals.co.uk today',
+    'bit.ly/abc',
+    'javascript:alert(1)',
+    'DATA:text/html,hi',
+    'mailto:x@y.z',
+    '<img src=x onerror=alert(1)>',
+    '[click](http://x.y)',
+    'ftp://files.example',
+    'evil．com', // full-width dot normalised to "."
+  ];
+  for (const text of bad) assert.ok(findTextProblem(text), `should reject: ${text}`);
+  const good = [
+    'Marinated chicken thighs, spiced mince, olives & chips.',
+    'Golden msemen (Nutella, pistachio, or amlou) — £7.50 on Uber Eats / Deliveroo',
+    'Sauce Algérienne, samurai sauce. Halal.',
+    'Follow @casastreetldn',
+  ];
+  for (const text of good) assert.equal(findTextProblem(text), null, `should allow: ${text}`);
+});
+
+test('Link protection: order links only allow Uber Eats / Deliveroo over https', () => {
+  assert.equal(isAllowedOrderUrl(VERIFIED_UBEREATS_URL, 'ubereats'), true);
+  assert.equal(isAllowedOrderUrl('https://www.ubereats.com/gb/store/x/123', 'ubereats'), true);
+  assert.equal(isAllowedOrderUrl('https://ubereats.com.evil.example/x', 'ubereats'), false);
+  assert.equal(isAllowedOrderUrl('http://www.ubereats.com/x', 'ubereats'), false);
+  assert.equal(isAllowedOrderUrl('https://user:pw@ubereats.com/x', 'ubereats'), false);
+  assert.equal(isAllowedOrderUrl('javascript:alert(1)', 'ubereats'), false);
+  assert.equal(isAllowedOrderUrl(VERIFIED_DELIVEROO_URL, 'deliveroo'), true);
+  assert.equal(isAllowedOrderUrl(VERIFIED_DELIVEROO_URL, 'ubereats'), false);
+});
+
+test('Menu editor: validate, add, edit, hide, move and delete dishes', () => {
+  const state = createInitialCmsState();
+
+  const invalid = validateMenuItemInput({
+    ...emptyMenuItemInput(),
+    name: '',
+    description: 'Best deals at www.phish.example',
+    verifiedPrice: '12',
+    orderUrl: 'https://evil.example/order',
+    deliverooUrl: 'https://deliveroo.co.uk.evil.example',
+    image: 'https://evil.example/x.png',
+  });
+  assert.equal(invalid.item, null);
+  assert.deepEqual(Object.keys(invalid.errors).sort(), [
+    'deliverooUrl',
+    'description',
+    'image',
+    'name',
+    'orderUrl',
+    'verifiedPrice',
+  ]);
+
+  const valid = validateMenuItemInput({
+    ...emptyMenuItemInput(),
+    name: 'Agadir',
+    description: 'Grilled chicken, harissa mayo and Moroccan salad.',
+    verifiedPrice: '£12.00',
+    image: '/uploads/abc123.jpg',
+  });
+  assert.ok(valid.item);
+  assert.equal(valid.item.halal, true);
+  assert.equal(valid.item.photoSource, 'official-casa-street');
+  assert.equal(valid.item.imageAlt, 'Agadir');
+
+  let next = upsertMenuItem(state, 'signature-sandwiches', valid.item);
+  let sandwiches = getPublicMenuCategories(next).find((c) => c.id === 'signature-sandwiches')!;
+  assert.equal(sandwiches.items.at(-1)?.name, 'Agadir');
+  assert.equal(next.approvalLog[0].action, 'Added new dish');
+
+  // Edit keeps the id; moving to another category removes it from the old one.
+  const edited = validateMenuItemInput({ ...menuItemToInput(valid.item), name: 'Agadir Special' }, valid.item);
+  next = upsertMenuItem(next, 'msemen-wraps', edited.item!);
+  assert.equal(next.menuCategories[0].items.some((i) => i.id === valid.item!.id), false);
+  assert.equal(next.menuCategories[1].items.at(-1)?.name, 'Agadir Special');
+
+  next = moveMenuItem(next, valid.item.id, -1);
+  assert.equal(next.menuCategories[1].items.at(-2)?.id, valid.item.id);
+
+  next = setMenuItemHidden(next, valid.item.id, true);
+  const publicWraps = getPublicMenuCategories(next).find((c) => c.id === 'msemen-wraps')!;
+  assert.equal(publicWraps.items.some((i) => i.id === valid.item!.id), false);
+  assert.equal(JSON.stringify(buildRestaurantJsonLd(next)).includes('Agadir Special'), false);
+
+  next = deleteMenuItem(next, valid.item.id);
+  assert.equal(next.menuCategories.flatMap((c) => c.items).some((i) => i.id === valid.item!.id), false);
+
+  // A section with every dish hidden disappears from the public menu.
+  let allHidden = state;
+  for (const item of state.menuCategories[2].items) allHidden = setMenuItemHidden(allHidden, item.id, true);
+  assert.equal(getPublicMenuCategories(allHidden).some((c) => c.id === 'tagines'), false);
+
+  // Section text is validated with the same rules.
+  assert.ok(validateCategoryText({ title: 'Wraps', kicker: '', description: 'see casa.com' }).errors.description);
+  const text = validateCategoryText({ title: 'Wraps & Msemen', kicker: 'Fresh', description: 'Hot off the griddle.' });
+  next = updateCategoryText(state, 'msemen-wraps', text.value!);
+  assert.equal(getPublicMenuCategories(next).find((c) => c.id === 'msemen-wraps')?.title, 'Wraps & Msemen');
+});
+
+test('Default menu content passes link protection; edited content survives a round trip', () => {
+  const state = createInitialCmsState();
+  assert.deepEqual(findCmsContentProblems(state), []);
+  assert.deepEqual(normalizeCmsState(JSON.parse(JSON.stringify(state))), state);
+
+  const { item } = validateMenuItemInput({
+    ...emptyMenuItemInput(),
+    name: 'Agadir',
+    description: 'Grilled chicken and harissa.',
+  });
+  const edited = upsertMenuItem(state, 'signature-sandwiches', item!);
+  const roundTrip = normalizeCmsState(JSON.parse(JSON.stringify(edited)));
+  assert.equal(roundTrip.menuCategories[0].items.at(-1)?.name, 'Agadir');
+
+  const injected = JSON.parse(JSON.stringify(state));
+  injected.menuCategories[0].items[0].description = '<script>alert(1)</script>';
+  injected.socialPosts[0].caption = 'Deals at www.phish.example';
+  const problems = findCmsContentProblems(injected);
+  assert.equal(problems.length, 2);
+  assert.match(problems[0], /Casablanca/);
 });

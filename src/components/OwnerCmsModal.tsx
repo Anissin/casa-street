@@ -31,7 +31,9 @@ import {
 import { buildRestaurantJsonLd } from '../lib/structuredData';
 import { useDialog } from '../lib/useDialog';
 import type { SaveResult } from '../App';
+import { checkPhotoFile, downscaleImage, uploadOwnerPhoto } from '../lib/imageUpload';
 import { HalalBadge } from './HalalBadge';
+import { MenuEditor } from './MenuEditor';
 
 interface OwnerCmsModalProps {
   cms: CmsState;
@@ -43,38 +45,7 @@ interface OwnerCmsModalProps {
   onClose: () => void;
 }
 
-type StudioTab = 'categories' | 'halal' | 'socialLinks' | 'socialFeed' | 'schema';
-
-const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
-const UPLOAD_MAX_EDGE = 1200;
-
-/** Downscale a photo in the browser so uploads stay small (JPEG, max 1200px). */
-function downscaleImage(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const scale = Math.min(1, UPLOAD_MAX_EDGE / Math.max(img.naturalWidth, img.naturalHeight));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(img.naturalWidth * scale);
-      canvas.height = Math.round(img.naturalHeight * scale);
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        URL.revokeObjectURL(url);
-        reject(new Error('Canvas unavailable'));
-        return;
-      }
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL('image/jpeg', 0.82));
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('Unreadable image'));
-    };
-    img.src = url;
-  });
-}
+type StudioTab = 'menuEditor' | 'categories' | 'halal' | 'socialLinks' | 'socialFeed' | 'schema';
 
 export function OwnerCmsModal({
   cms,
@@ -88,7 +59,7 @@ export function OwnerCmsModal({
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialog(true, onClose, dialogRef);
 
-  const [activeTab, setActiveTab] = useState<StudioTab>('categories');
+  const [activeTab, setActiveTab] = useState<StudioTab>('menuEditor');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [passcode, setPasscode] = useState('');
   const [unlockError, setUnlockError] = useState<string | null>(null);
@@ -200,12 +171,9 @@ export function OwnerCmsModal({
     if (!file) return;
     setAiResult(null);
     setAiError(null);
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setAiError('Please choose a JPEG, PNG or WebP photo.');
-      return;
-    }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      setAiError('That photo is larger than 15 MB. Please choose a smaller one.');
+    const problem = checkPhotoFile(file);
+    if (problem) {
+      setAiError(problem);
       return;
     }
     downscaleImage(file)
@@ -248,11 +216,19 @@ export function OwnerCmsModal({
 
   async function handlePublishOwnerPost(approved: boolean) {
     if (!uploadPreview || !uploadTitle.trim()) return;
+    let mediaUrl: string;
+    try {
+      // Stored as a file on the server, not inside the menu data.
+      mediaUrl = await uploadOwnerPhoto(ownerToken, uploadPreview);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Could not upload the photo.');
+      return;
+    }
     const next = addOwnerSocialPost(cms, {
       platform: 'instagram',
       title: uploadTitle.trim(),
       caption: uploadCaption.trim() || 'Fresh from Casa Street London.',
-      mediaUrl: uploadPreview,
+      mediaUrl,
       mediaAlt: `${uploadTitle.trim()} — owner-supplied Casa Street photograph`,
       mediaType: 'image',
       postUrl: VERIFIED_INSTAGRAM_URL,
@@ -277,7 +253,7 @@ export function OwnerCmsModal({
         aria-modal="true"
         aria-labelledby="owner-studio-title"
         tabIndex={-1}
-        className="w-full max-w-4xl bg-[#FAFAF7] text-[#141413] rounded-xl border border-[#D4CFC2] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-5xl bg-[#FAFAF7] text-[#141413] rounded-xl border border-[#D4CFC2] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
       >
         {/* Header */}
         <div className="bg-[#141413] text-white px-6 py-4 flex items-center justify-between gap-4">
@@ -372,8 +348,9 @@ export function OwnerCmsModal({
         {/* Navigation Tabs */}
         <div className="px-6 py-3 bg-[#F1EFEA] border-b border-[#E4E0D5] flex items-center gap-2 overflow-x-auto">
           {[
-            { id: 'categories', label: 'Menu & Drafts' },
+            { id: 'menuEditor', label: 'Edit Menu' },
             { id: 'halal', label: 'Halal' },
+            { id: 'categories', label: 'Drafts' },
             { id: 'socialLinks', label: 'Social Links' },
             { id: 'socialFeed', label: 'Follow Feed' },
             { id: 'schema', label: 'Structured Data' },
@@ -396,6 +373,16 @@ export function OwnerCmsModal({
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* TAB: Menu editor (add / edit / hide / delete dishes) */}
+          {activeTab === 'menuEditor' && (
+            <MenuEditor
+              cms={cms}
+              ownerToken={ownerToken}
+              saving={saving}
+              applyCmsUpdate={applyCmsUpdate}
+            />
+          )}
+
           {/* TAB 1: Menu Categories & French Tacos Confirmation Gate */}
           {activeTab === 'categories' && (
             <div className="space-y-6">
