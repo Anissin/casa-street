@@ -63,6 +63,29 @@ Enforced by the server, with instant feedback in the editor
 - the address, social profiles and the official Instagram / Uber Eats / Deliveroo /
   Google Maps links are fixed in `src/lib/cms.ts` and cannot be changed via the API.
 
+## Hosting
+
+**Vercel (current):** Vercel builds the site with `npm run build` and serves the static
+files in `dist/`. It does not run `server.ts`. Everything customers see works: menu,
+100% Halal messaging, ordering links and SEO. On Vercel builds:
+
+- the built-in menu from `src/lib/cms.ts` is shown (no `/api/cms` request is made);
+- security and caching headers come from `vercel.json`;
+- the canonical URL, share image, `robots.txt` and `sitemap.xml` use `SITE_URL`, or
+  Vercel's production domain automatically;
+- **the admin (Ctrl+Shift+C) opens but cannot save.** It shows a notice explaining why.
+
+To edit the menu from the admin, the site needs a server with persistent storage:
+
+1. run the Node server (`npm run build && npm start`) on a host with a persistent disk
+   (e.g. Render, Railway, Fly.io, a VPS or Cloud Run with a mounted volume), setting
+   `OWNER_CMS_TOKEN`, `CMS_DATA_FILE` and `UPLOADS_DIR`; or
+2. move the API to Vercel Functions with Vercel storage (Blob / KV), which needs a code
+   change and storage enabled on the Vercel project.
+
+Set `CASA_STATIC_HOSTING=false` at build time if you host the Node server somewhere
+Vercel builds it (`true` forces static mode elsewhere).
+
 ## Images
 
 Optimised WebP files in `public/images/` are generated from the originals by:

@@ -47,6 +47,9 @@ interface OwnerCmsModalProps {
 
 type StudioTab = 'menuEditor' | 'categories' | 'halal' | 'socialLinks' | 'socialFeed' | 'schema';
 
+const STATIC_HOSTING_MESSAGE =
+  'Editing is not available on this hosting yet: the admin needs the Casa Street server (npm start), which static hosting such as Vercel does not run. The public website is not affected.';
+
 export function OwnerCmsModal({
   cms,
   ownerToken,
@@ -118,6 +121,11 @@ export function OwnerCmsModal({
       if (resp.ok) {
         setPasscode('');
         onUnlock(token);
+        return;
+      }
+      const isJson = (resp.headers.get('content-type') ?? '').includes('json');
+      if (!isJson || resp.status === 404 || resp.status === 405) {
+        setUnlockError(STATIC_HOSTING_MESSAGE);
         return;
       }
       const data = (await resp.json().catch(() => ({}))) as { error?: string };
@@ -292,7 +300,21 @@ export function OwnerCmsModal({
           </div>
         </div>
 
-        {!ownerToken ? (
+        {__CASA_STATIC_HOSTING__ ? (
+          <div className="p-6 sm:p-10 space-y-4 overflow-y-auto">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-6 h-6 text-amber-600 shrink-0 mt-1" aria-hidden="true" />
+              <div className="space-y-2 max-w-2xl">
+                <h3 className="font-display text-2xl font-bold uppercase">Admin not available on this hosting</h3>
+                <p className="text-sm text-neutral-700">{STATIC_HOSTING_MESSAGE}</p>
+                <p className="text-sm text-neutral-700">
+                  To edit dishes, prices and photos from here, the site needs a server with storage.
+                  See &ldquo;Hosting&rdquo; in the README for the options.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : !ownerToken ? (
           <form onSubmit={handleUnlock} className="p-6 sm:p-10 space-y-5 overflow-y-auto">
             <div className="flex items-start gap-3">
               <KeyRound className="w-6 h-6 text-[#C8281E] shrink-0 mt-1" aria-hidden="true" />

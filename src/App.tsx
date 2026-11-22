@@ -54,7 +54,9 @@ export default function App() {
   const [ownerToken, setOwnerToken] = useState<string>(readStoredToken);
 
   // Sync owner-approved CMS state from the backend (validated client-side too).
+  // Static hosting (e.g. Vercel) has no backend: the built-in menu is used.
   useEffect(() => {
+    if (__CASA_STATIC_HOSTING__) return;
     let active = true;
     fetch('/api/cms')
       .then((res) => (res.ok ? res.json() : null))
