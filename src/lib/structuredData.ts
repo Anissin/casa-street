@@ -1,7 +1,9 @@
 import {
   type CmsState,
+  getHalalDisplay,
   getPublicMenuCategories,
   getPublicSocialLinks,
+  isItemHalal,
 } from './cms';
 
 function extractNumericPrice(verifiedPrice?: string): string | undefined {
@@ -10,19 +12,35 @@ function extractNumericPrice(verifiedPrice?: string): string | undefined {
   return singleMatch ? singleMatch[1] : undefined;
 }
 
-export function buildRestaurantJsonLd(state: CmsState) {
+/**
+ * Schema.org Restaurant JSON-LD built only from verified, published CMS data.
+ * `siteUrl` (e.g. window.location.origin) makes image/logo/url absolute.
+ */
+export function buildRestaurantJsonLd(state: CmsState, siteUrl = '') {
   const publicCategories = getPublicMenuCategories(state);
+  const halal = getHalalDisplay(state);
   const verifiedSocialUrls = getPublicSocialLinks(state)
     .filter((link) => ['instagram', 'tiktok', 'facebook'].includes(link.platform))
     .map((link) => link.url);
+  const origin = siteUrl.replace(/\/+$/, '');
+
+  const description = `${
+    halal.show ? '100% halal Moroccan street food' : 'Moroccan street food'
+  } at 145-147 Edgware Road, Paddington, London: oversized Casablanca, Tangier, Marrakesh, Rabat and Fes sandwiches, Signature Firma Wraps, flaky msemen and chicken tajine.`;
 
   return {
     '@context': 'https://schema.org',
     '@type': 'Restaurant',
     name: state.brand.name,
-    description:
-      'Bold Moroccan street food at 145-147 Edgware Road, Paddington, London featuring oversized Casablanca, Tangier, Marrakesh, Rabat, and Fes sandwiches, Signature Firma Wraps, flaky msemen, and secondary tagines.',
-    servesCuisine: ['Moroccan', 'Street Food', 'Halal'],
+    description,
+    ...(origin
+      ? {
+          url: `${origin}/`,
+          image: `${origin}/images/og-casa-street.jpg`,
+          logo: `${origin}/images/icon-512.png`,
+        }
+      : {}),
+    servesCuisine: halal.show ? ['Moroccan', 'Street Food', 'Halal'] : ['Moroccan', 'Street Food'],
     address: {
       '@type': 'PostalAddress',
       streetAddress: state.location.streetAddress,
@@ -34,6 +52,10 @@ export function buildRestaurantJsonLd(state: CmsState) {
       '@type': 'GeoCoordinates',
       latitude: state.location.latitude,
       longitude: state.location.longitude,
+    },
+    containedInPlace: {
+      '@type': 'Place',
+      name: 'The Food District',
     },
     hasMap: state.location.mapsUrl,
     sameAs: verifiedSocialUrls,
@@ -68,6 +90,9 @@ export function buildRestaurantJsonLd(state: CmsState) {
             '@type': 'MenuItem',
             name: item.name,
             description: item.description,
+            ...(isItemHalal(state, item)
+              ? { suitableForDiet: 'https://schema.org/HalalDiet' }
+              : {}),
             ...(numericPrice
               ? {
                   offers: {

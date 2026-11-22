@@ -1,4 +1,4 @@
-import { ArrowUpRight, Instagram, MapPin, ShieldCheck } from 'lucide-react';
+import { ArrowUpRight, Instagram, MapPin } from 'lucide-react';
 import {
   type CmsState,
   CASA_LOGO_URL,
@@ -6,110 +6,138 @@ import {
   VERIFIED_GOOGLE_MAPS_URL,
   VERIFIED_INSTAGRAM_URL,
   VERIFIED_UBEREATS_URL,
+  getHalalDisplay,
   getPublicSocialLinks,
 } from '../lib/cms';
+import { HalalBadge } from './HalalBadge';
 
 interface FooterProps {
   cms: CmsState;
   onOpenOwnerStudio: () => void;
-  onOpenConcierge: () => void;
 }
 
-export function Footer({ cms, onOpenOwnerStudio, onOpenConcierge }: FooterProps) {
-  const verifiedFooterSocials = getPublicSocialLinks(cms, 'footer').filter((l) =>
-    ['instagram', 'tiktok', 'facebook', 'whatsapp'].includes(l.platform)
+const EXPLORE_LINKS = [
+  { href: '#sandwiches', label: 'Sandwiches' },
+  { href: '#msemen', label: 'Msemen & Wraps' },
+  { href: '#tagines', label: 'Tagine & Drinks' },
+  { href: '#about', label: 'About' },
+  { href: '#find-us', label: 'Find Us' },
+];
+
+export function Footer({ cms, onOpenOwnerStudio }: FooterProps) {
+  const halal = getHalalDisplay(cms);
+  const extraSocials = getPublicSocialLinks(cms, 'footer').filter((l) =>
+    ['tiktok', 'facebook', 'whatsapp'].includes(l.platform)
   );
 
+  const orderLinks = [
+    { href: VERIFIED_UBEREATS_URL, label: 'Order on Uber Eats' },
+    { href: VERIFIED_DELIVEROO_URL, label: 'Order on Deliveroo' },
+    { href: VERIFIED_GOOGLE_MAPS_URL, label: 'Google Maps' },
+    { href: VERIFIED_INSTAGRAM_URL, label: 'Instagram @casastreetldn' },
+    ...extraSocials.map((l) => ({ href: l.url, label: l.label })),
+  ];
+
   return (
-    <footer className="bg-[#141413] text-neutral-300 border-t border-white/10 pb-20 md:pb-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-8">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-          <div className="flex items-start gap-4 max-w-md">
-            <img
-              src={cms.brand.logoUrl || CASA_LOGO_URL}
-              alt="Casa Street official crest"
-              className="w-14 h-14 rounded-full object-cover border border-white/15 shrink-0"
-            />
-            <div className="space-y-1.5">
-              <span className="font-display text-3xl font-extrabold uppercase tracking-tight text-white">
-                Casa Street
-              </span>
-              <p className="text-sm text-neutral-400">
-                145–147 Edgware Road, Paddington, London W2 2HR (The Food District). Oversized
-                Moroccan sandwiches, Signature Firma Wrap, flaky Msemen &amp; Tagines. Separate from
-                The Taco House.
-              </p>
+    <footer className="bg-ink pb-24 text-neutral-300 md:pb-10">
+      <div className="mx-auto max-w-7xl px-4 pt-14 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-10 border-b border-white/10 pb-10 md:grid-cols-12">
+          <div className="space-y-5 md:col-span-5">
+            <div className="flex items-center gap-4">
+              <img
+                src={cms.brand.logoUrl || CASA_LOGO_URL}
+                alt="Casa Street logo"
+                width={56}
+                height={56}
+                loading="lazy"
+                className="h-14 w-14 shrink-0 rounded-full ring-1 ring-white/15"
+              />
+              <div>
+                <p className="font-display text-3xl font-extrabold uppercase tracking-tight text-white">
+                  Casa Street
+                </p>
+                <p className="text-sm text-neutral-400">
+                  {halal.show ? 'Halal Moroccan Street Food' : 'Moroccan Street Food'}
+                </p>
+              </div>
             </div>
+            {halal.show && (
+              <div className="space-y-2">
+                <HalalBadge />
+                <p className="text-xs text-neutral-400">
+                  100% halal meat &amp; chicken
+                  {halal.certified
+                    ? halal.certificationBody
+                      ? ` · Certified by ${halal.certificationBody}`
+                      : ' · Certified'
+                    : ''}
+                </p>
+              </div>
+            )}
+            <address className="flex items-start gap-2 text-sm not-italic leading-relaxed text-neutral-400">
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-saffron" aria-hidden="true" />
+              <span>
+                The Food District, {cms.location.streetAddress}, Paddington, {cms.location.city}{' '}
+                {cms.location.postalCode}
+              </span>
+            </address>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <a
-              href={VERIFIED_UBEREATS_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#C8281E] hover:bg-[#AD2017] text-white text-xs font-semibold uppercase tracking-wider rounded-md whitespace-nowrap"
-            >
-              <span>Uber Eats</span>
-              <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
-            </a>
+          <nav aria-label="Footer" className="md:col-span-3">
+            <h2 className="font-display text-lg font-bold uppercase tracking-wider text-white">Explore</h2>
+            <ul className="mt-3 space-y-0.5">
+              {EXPLORE_LINKS.map((link) => (
+                <li key={link.href}>
+                  <a
+                    href={link.href}
+                    className="inline-flex min-h-11 min-w-11 items-center text-sm text-neutral-400 transition-colors hover:text-white"
+                  >
+                    {link.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
 
-            <a
-              href={VERIFIED_DELIVEROO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#00CCBC] hover:bg-[#00B3A5] text-[#141413] text-xs font-semibold uppercase tracking-wider rounded-md whitespace-nowrap"
-            >
-              <span>Deliveroo</span>
-              <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
-            </a>
-
-            <a
-              href={VERIFIED_GOOGLE_MAPS_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white/10 hover:bg-white/15 border border-white/15 text-white text-xs font-semibold uppercase tracking-wider rounded-md whitespace-nowrap"
-            >
-              <MapPin className="w-3.5 h-3.5 text-[#F59E0B]" aria-hidden="true" />
-              <span>Find Us</span>
-            </a>
-
-            {verifiedFooterSocials.map((link) => (
-              <a
-                key={link.id}
-                href={link.url || VERIFIED_INSTAGRAM_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white/10 hover:bg-white/15 border border-white/15 text-white text-xs font-semibold uppercase tracking-wider rounded-md whitespace-nowrap"
-              >
-                {link.platform === 'instagram' && (
-                  <Instagram className="w-3.5 h-3.5 text-[#F59E0B]" aria-hidden="true" />
-                )}
-                <span>{link.label}</span>
-              </a>
-            ))}
+          <div className="md:col-span-4">
+            <h2 className="font-display text-lg font-bold uppercase tracking-wider text-white">
+              Order &amp; Follow
+            </h2>
+            <ul className="mt-3 space-y-0.5">
+              {orderLinks.map((link) => (
+                <li key={link.href}>
+                  <a
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-11 items-center gap-1.5 text-sm text-neutral-400 transition-colors hover:text-white"
+                  >
+                    {link.href === VERIFIED_INSTAGRAM_URL && (
+                      <Instagram className="h-4 w-4 text-saffron" aria-hidden="true" />
+                    )}
+                    <span>{link.label}</span>
+                    <ArrowUpRight className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
+                  </a>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
 
-        <div className="pt-6 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs text-neutral-400">
-          <p>© {new Date().getFullYear()} Casa Street London · Edgware Road W2 2HR.</p>
-
-          <div className="flex flex-wrap items-center gap-4">
-            <button
-              type="button"
-              onClick={onOpenConcierge}
-              className="hover:text-white transition-colors"
-            >
-              Kitchen Concierge
-            </button>
-            <button
-              type="button"
-              onClick={onOpenOwnerStudio}
-              className="inline-flex items-center gap-1.5 hover:text-white transition-colors"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-[#F59E0B]" aria-hidden="true" />
-              <span>Owner CMS &amp; Approvals</span>
-            </button>
-          </div>
+        <div className="flex flex-col justify-between gap-2 py-6 text-xs text-neutral-400 sm:flex-row sm:items-center">
+          <p>
+            © {new Date().getFullYear()} Casa Street London · 145–147 Edgware Road, W2 2HR
+          </p>
+          <a
+            href="#owner"
+            onClick={(e) => {
+              e.preventDefault();
+              onOpenOwnerStudio();
+            }}
+            className="inline-flex min-h-11 items-center self-start text-neutral-400 transition-colors hover:text-white sm:self-auto"
+          >
+            Owner login
+          </a>
         </div>
       </div>
     </footer>

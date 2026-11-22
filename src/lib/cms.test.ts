@@ -6,10 +6,19 @@ import {
   VERIFIED_INSTAGRAM_URL,
   VERIFIED_UBEREATS_URL,
   confirmAndPublishCategory,
+  CMS_SCHEMA_VERSION,
   createInitialCmsState,
   getApprovedSocialPosts,
+  getHalalDisplay,
   getPublicMenuCategories,
   getPublicSocialLinks,
+  hostMatches,
+  isItemHalal,
+  isSafeImageSource,
+  normalizeCmsState,
+  setHalalCertification,
+  setHalalConfirmation,
+  setMenuItemHalal,
   unpublishCategory,
   unverifySocialLink,
   validateSocialInput,
@@ -106,8 +115,10 @@ test('WhatsApp phone validation normalizes E.164 numbers to wa.me links', () => 
 test('Approved social posts exclude unapproved drafts', () => {
   const state = createInitialCmsState();
   const approved = getApprovedSocialPosts(state);
-  assert.equal(approved.length, 3);
+  // The mint tea photo is held because it carries a third-party watermark.
+  assert.equal(approved.length, 2);
   assert.equal(approved.some((p) => p.id === 'post-draft-tacos'), false);
+  assert.equal(approved.some((p) => p.id === 'post-mint-tea-real'), false);
 });
 
 test('Structured data JSON-LD includes verified Maps, Uber Eats, Deliveroo, Instagram, and excludes unpublished categories', () => {
@@ -131,4 +142,160 @@ test('Structured data JSON-LD includes verified Maps, Uber Eats, Deliveroo, Inst
     updatedJsonLd.hasMenu.hasMenuSection.some((s) => s.name === 'French Tacos'),
     true
   );
+});
+
+test('Deliveroo link has no tracking parameters', () => {
+  assert.equal(VERIFIED_DELIVEROO_URL.includes('?'), false);
+  assert.equal(VERIFIED_DELIVEROO_URL, 'https://deliveroo.co.uk/menu/london/paddington/casa-street');
+});
+
+test('Halal: owner-confirmed 100% halal messaging shows with no certification wording by default', () => {
+  const state = createInitialCmsState();
+  const display = getHalalDisplay(state);
+  assert.equal(display.show, true);
+  assert.equal(display.certified, false);
+  assert.equal(display.certificationBody, '');
+
+  // Meat dishes are tagged; sweet msemen and drinks are not.
+  const items = state.menuCategories.flatMap((c) => c.items);
+  const tagged = items.filter((i) => isItemHalal(state, i)).map((i) => i.id);
+  assert.deepEqual(tagged, [
+    'casablanca-sandwich',
+    'tangier-sandwich',
+    'marrakesh-sandwich',
+    'rabat-sandwich',
+    'fes-sandwich',
+    'signature-firma-wrap',
+    'chicken-tajine',
+  ]);
+
+  // Hiding halal messaging hides every tag and clears certification.
+  const hidden = setHalalConfirmation(state, false);
+  assert.equal(getHalalDisplay(hidden).show, false);
+  assert.equal(items.some((i) => isItemHalal(hidden, i)), false);
+
+  // Certification wording is optional and off by default; it requires confirmation,
+  // and the certifying body name is optional.
+  const noBody = setHalalCertification(state, { certified: true, certificationBody: ' ', certificateUrl: '' });
+  assert.equal(noBody.error, undefined);
+  assert.equal(getHalalDisplay(noBody.state).certified, true);
+  assert.equal(getHalalDisplay(noBody.state).certificationBody, '');
+  assert.ok(setHalalCertification(hidden, { certified: true, certificationBody: 'HMC', certificateUrl: '' }).error);
+  assert.ok(
+    setHalalCertification(state, { certified: false, certificationBody: '', certificateUrl: 'javascript:alert(1)' }).error
+  );
+  const certified = setHalalCertification(state, {
+    certified: true,
+    certificationBody: 'Example Body',
+    certificateUrl: 'https://example.org/cert',
+  });
+  assert.equal(certified.error, undefined);
+  assert.equal(getHalalDisplay(certified.state).certified, true);
+  assert.equal(getHalalDisplay(certified.state).certificationBody, 'Example Body');
+
+  // Per-dish tag toggling.
+  const untagged = setMenuItemHalal(state, 'tangier-sandwich', false);
+  const tangier = untagged.menuCategories[0].items.find((i) => i.id === 'tangier-sandwich')!;
+  assert.equal(isItemHalal(untagged, tangier), false);
+});
+
+test('Social URL validation rejects look-alike domains', () => {
+  assert.equal(hostMatches('www.tiktok.com', 'tiktok.com'), true);
+  assert.equal(hostMatches('tiktok.com.evil.example', 'tiktok.com'), false);
+  assert.equal(hostMatches('nottiktok.com', 'tiktok.com'), false);
+  assert.equal(validateSocialInput('tiktok', 'https://tiktok.com.evil.example/@x').valid, false);
+  assert.equal(validateSocialInput('instagram', 'https://evilinstagram.com/x').valid, false);
+  assert.equal(validateSocialInput('facebook', 'javascript:alert(1)').valid, false);
+  assert.equal(validateSocialInput('facebook', 'http://www.facebook.com/x').valid, false);
+});
+
+test('Image sources: same-origin paths and small data:image URLs only', () => {
+  assert.equal(isSafeImageSource('/images/menu/tangier-960.webp'), true);
+  assert.equal(isSafeImageSource('//evil.example/x.png'), false);
+  assert.equal(isSafeImageSource('/images/../../etc/passwd'), false);
+  assert.equal(isSafeImageSource('https://evil.example/x.png'), false);
+  assert.equal(isSafeImageSource('javascript:alert(1)'), false);
+  assert.equal(isSafeImageSource('data:image/svg+xml;base64,PHN2Zz4='), false);
+  assert.equal(isSafeImageSource('data:image/png;base64,iVBORw0KGgo='), true);
+});
+
+test('normalizeCmsState rejects tampered content and keeps only validated owner decisions', () => {
+  const base = createInitialCmsState();
+  const tampered = JSON.parse(JSON.stringify(base));
+  tampered.brand.name = 'Hacked';
+  tampered.location.uberEatsUrl = 'https://phishing.example';
+  tampered.socialLinks[0].url = 'https://phishing.example';
+  tampered.menuCategories[0].items[0].verifiedPrice = '£0.01';
+  tampered.socialLinks.find((l: { id: string }) => l.id === 'tiktok').verified = true;
+  tampered.socialLinks.find((l: { id: string }) => l.id === 'tiktok').url = 'https://tiktok.com.evil.example/@x';
+  tampered.socialPosts.unshift({
+    id: 'post-1795349698219',
+    title: 'Bad',
+    mediaUrl: 'https://evil.example/track.png',
+    approved: true,
+  });
+  tampered.socialPosts.unshift({
+    id: 'post-1795349698220',
+    title: 'Owner photo',
+    mediaUrl: 'data:image/jpeg;base64,/9j/4AAQ',
+    postUrl: 'javascript:alert(1)',
+    approved: true,
+  });
+  // French Tacos cannot be published without owner confirmation.
+  tampered.menuCategories.find((c: { id: string }) => c.id === 'french-tacos').published = true;
+
+  const clean = normalizeCmsState(tampered);
+  assert.equal(clean.brand.name, 'Casa Street');
+  assert.equal(clean.location.uberEatsUrl, VERIFIED_UBEREATS_URL);
+  assert.equal(clean.socialLinks[0].url, VERIFIED_INSTAGRAM_URL);
+  assert.equal(clean.menuCategories[0].items[0].verifiedPrice, '£11.70');
+  assert.equal(getPublicSocialLinks(clean, 'follow').some((l) => l.platform === 'tiktok'), false);
+  assert.equal(getPublicMenuCategories(clean).some((c) => c.id === 'french-tacos'), false);
+  assert.equal(clean.socialPosts.some((p) => p.id === 'post-1795349698219'), false);
+  const ownerPost = clean.socialPosts.find((p) => p.id === 'post-1795349698220');
+  assert.ok(ownerPost);
+  assert.equal(ownerPost.postUrl, VERIFIED_INSTAGRAM_URL);
+
+  assert.deepEqual(normalizeCmsState('garbage'), base);
+  assert.deepEqual(normalizeCmsState(null), base);
+});
+
+test('normalizeCmsState carries owner decisions and migrates legacy files', () => {
+  const published = confirmAndPublishCategory(createInitialCmsState(), 'french-tacos');
+  const verified = verifySocialLink(published, 'tiktok', 'https://www.tiktok.com/@casastreetldn').state;
+  const hiddenHalal = setHalalConfirmation(verified, false);
+  const roundTrip = normalizeCmsState(JSON.parse(JSON.stringify(hiddenHalal)));
+  assert.equal(getPublicMenuCategories(roundTrip).some((c) => c.id === 'french-tacos'), true);
+  assert.equal(getPublicSocialLinks(roundTrip, 'follow').some((l) => l.platform === 'tiktok'), true);
+  assert.equal(getHalalDisplay(roundTrip).show, false);
+  assert.equal(roundTrip.schemaVersion, CMS_SCHEMA_VERSION);
+
+  // A legacy (v1) file without schemaVersion/halal gets current defaults,
+  // including the held watermarked photo, but keeps publish decisions.
+  const legacy = JSON.parse(JSON.stringify(published));
+  delete legacy.schemaVersion;
+  delete legacy.halal;
+  legacy.socialPosts.find((p: { id: string }) => p.id === 'post-mint-tea-real').approved = true;
+  const migrated = normalizeCmsState(legacy);
+  assert.equal(getHalalDisplay(migrated).show, true);
+  assert.equal(migrated.socialPosts.find((p) => p.id === 'post-mint-tea-real')?.approved, false);
+  assert.equal(getPublicMenuCategories(migrated).some((c) => c.id === 'french-tacos'), true);
+});
+
+test('Structured data marks only halal-tagged dishes with HalalDiet', () => {
+  const state = createInitialCmsState();
+  const jsonLd = buildRestaurantJsonLd(state, 'https://casa.example');
+  const items = jsonLd.hasMenu.hasMenuSection.flatMap((s) => s.hasMenuItem) as Array<{
+    name: string;
+    suitableForDiet?: string;
+  }>;
+  assert.equal(items.find((i) => i.name === 'Casablanca')?.suitableForDiet, 'https://schema.org/HalalDiet');
+  assert.equal(items.find((i) => i.name.startsWith('Msemen ('))?.suitableForDiet, undefined);
+  assert.equal(jsonLd.servesCuisine.includes('Halal'), true);
+  assert.equal(jsonLd.url, 'https://casa.example/');
+
+  const noHalal = buildRestaurantJsonLd(setHalalConfirmation(state, false));
+  assert.equal(noHalal.servesCuisine.includes('Halal'), false);
+  assert.equal(JSON.stringify(noHalal).includes('HalalDiet'), false);
+  assert.equal('url' in noHalal, false);
 });

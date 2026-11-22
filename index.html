@@ -1,42 +1,60 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-GB">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Casa Street — Bold Moroccan Street Food in London</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Casa Street | 100% Halal Moroccan Street Food, Edgware Rd London</title>
     <meta
       name="description"
-      content="Oversized Casablanca, Tangier, and Marrakesh Moroccan sandwiches, flaky msemen wraps, and slow-cooked tagines in London. Order on Uber Eats or visit us."
+      content="100% halal Moroccan street food on Edgware Road, London W2. Oversized Casablanca, Tangier &amp; Marrakesh sandwiches, Firma wraps, msemen and tajine."
     />
-    <meta property="og:title" content="Casa Street — Bold Moroccan Street Food in London" />
+    <meta name="theme-color" content="#141413" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <!--casa:canonical-->
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/images/icon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Casa Street" />
+    <meta property="og:locale" content="en_GB" />
+    <meta property="og:title" content="Casa Street | 100% Halal Moroccan Street Food, Edgware Rd London" />
     <meta
       property="og:description"
-      content="Oversized Casablanca, Tangier, and Marrakesh Moroccan sandwiches, flaky msemen wraps, and slow-cooked tagines. Order on Uber Eats."
+      content="100% halal Moroccan street food: oversized sandwiches, Firma wraps and flaky msemen at The Food District, Edgware Road. Order on Uber Eats or Deliveroo."
     />
-    <meta property="og:type" content="restaurant" />
-    <meta property="og:site_name" content="Casa Street" />
+    <meta property="og:image" content="/images/og-casa-street.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Casa Street oversized Moroccan baguette sandwiches" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Casa Street — Bold Moroccan Street Food in London" />
+    <meta name="twitter:title" content="Casa Street | 100% Halal Moroccan Street Food, Edgware Rd London" />
     <meta
       name="twitter:description"
-      content="Oversized Moroccan sandwiches and flaky msemen wraps in London. Order online via Uber Eats."
+      content="Oversized Moroccan sandwiches and flaky msemen wraps in London. Order on Uber Eats or Deliveroo."
     />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <meta name="twitter:image" content="/images/og-casa-street.jpg" />
+
+    <!-- Hero (LCP) image: start downloading before JavaScript runs -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
+      rel="preload"
+      as="image"
+      type="image/webp"
+      imagesrcset="/images/hero-sandwiches-480.webp 480w, /images/hero-sandwiches-749.webp 749w"
+      imagesizes="(min-width: 1280px) 480px, (min-width: 1024px) 38vw, (min-width: 640px) 448px, 92vw"
+      fetchpriority="high"
     />
+
     <script id="casa-jsonld" type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "Restaurant",
         "name": "Casa Street",
-        "description": "Bold Moroccan street food in London featuring oversized Casablanca, Tangier, and Marrakesh sandwiches, flaky msemen wraps, and secondary traditional tagines.",
+        "description": "100% halal Moroccan street food at 145-147 Edgware Road, Paddington, London: oversized Casablanca, Tangier, Marrakesh, Rabat and Fes sandwiches, Signature Firma Wraps, flaky msemen and chicken tajine.",
         "servesCuisine": ["Moroccan", "Street Food", "Halal"],
         "address": {
           "@type": "PostalAddress",
-          "streetAddress": "145-147 Edgware Road",
+          "streetAddress": "145–147 Edgware Road",
           "addressLocality": "London",
           "postalCode": "W2 2HR",
           "addressCountry": "GB"
@@ -46,10 +64,9 @@
           "latitude": 51.5175157,
           "longitude": -0.1672527
         },
+        "containedInPlace": { "@type": "Place", "name": "The Food District" },
         "hasMap": "https://www.google.com/maps/search/?api=1&query=51.5175157%2C-0.1672527&query_place_id=ChIJB92CagAbdkgR-Uo59s_L3G0",
-        "sameAs": [
-          "https://www.instagram.com/casastreetldn/"
-        ],
+        "sameAs": ["https://www.instagram.com/casastreetldn/"],
         "potentialAction": [
           {
             "@type": "OrderAction",
@@ -64,16 +81,31 @@
             "name": "Order on Deliveroo",
             "target": {
               "@type": "EntryPoint",
-              "urlTemplate": "https://deliveroo.co.uk/menu/london/paddington/casa-street?srsltid=AfmBOooePdmLDxNholMsROndcaZZx_M-bRhRXBUwlzTBNua9VA3KSn4f"
+              "urlTemplate": "https://deliveroo.co.uk/menu/london/paddington/casa-street"
             }
           }
         ]
       }
     </script>
   </head>
-  <body class="bg-[#FAFAF7] text-[#141413] antialiased selection:bg-[#C8281E] selection:text-white">
+  <body>
     <div id="root"></div>
+    <noscript>
+      <div style="padding: 24px; font-family: system-ui, sans-serif; max-width: 640px; margin: 0 auto">
+        <h1>Casa Street: 100% Halal Moroccan Street Food</h1>
+        <p>
+          Oversized Moroccan sandwiches (Casablanca, Tangier, Marrakesh, Rabat and Fes), Signature
+          Firma Wraps, msemen and chicken tajine at The Food District, 145–147 Edgware Road, London
+          W2 2HR.
+        </p>
+        <p>
+          <a href="https://www.ubereats.com/gb/store/casa-street/tuQa5hFpRaWpH0Ih5ZyeKA">Order on Uber Eats</a> ·
+          <a href="https://deliveroo.co.uk/menu/london/paddington/casa-street">Order on Deliveroo</a> ·
+          <a href="https://www.google.com/maps/search/?api=1&amp;query=51.5175157%2C-0.1672527&amp;query_place_id=ChIJB92CagAbdkgR-Uo59s_L3G0">Google Maps</a> ·
+          <a href="https://www.instagram.com/casastreetldn/">Instagram</a>
+        </p>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

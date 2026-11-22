@@ -1,11 +1,13 @@
-import { useState, type ChangeEvent } from 'react';
+import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
   AlertTriangle,
   Camera,
   CheckCircle2,
   Eye,
   EyeOff,
+  KeyRound,
   Loader2,
+  Lock,
   RotateCcw,
   ShieldCheck,
   Upload,
@@ -13,35 +15,91 @@ import {
 } from 'lucide-react';
 import {
   type CmsState,
+  type PhotoAnalysisResult,
   VERIFIED_INSTAGRAM_URL,
   addOwnerSocialPost,
   confirmAndPublishCategory,
+  getHalalDisplay,
+  setHalalCertification,
+  setHalalConfirmation,
+  setMenuItemHalal,
   toggleSocialPostApproval,
   unpublishCategory,
   unverifySocialLink,
   verifySocialLink,
 } from '../lib/cms';
 import { buildRestaurantJsonLd } from '../lib/structuredData';
-import type { PhotoAnalysisResult } from './KitchenAssistantModal';
+import { useDialog } from '../lib/useDialog';
+import type { SaveResult } from '../App';
+import { HalalBadge } from './HalalBadge';
 
 interface OwnerCmsModalProps {
-  isOpen: boolean;
   cms: CmsState;
-  onUpdateCms: (nextState: CmsState) => Promise<void>;
-  onResetCms: () => Promise<void>;
+  ownerToken: string;
+  onUnlock: (token: string) => void;
+  onLock: () => void;
+  onUpdateCms: (nextState: CmsState) => Promise<SaveResult>;
+  onResetCms: () => Promise<SaveResult>;
   onClose: () => void;
 }
 
-type StudioTab = 'categories' | 'socialLinks' | 'socialFeed' | 'schema';
+type StudioTab = 'categories' | 'halal' | 'socialLinks' | 'socialFeed' | 'schema';
+
+const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+const UPLOAD_MAX_EDGE = 1200;
+
+/** Downscale a photo in the browser so uploads stay small (JPEG, max 1200px). */
+function downscaleImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, UPLOAD_MAX_EDGE / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        URL.revokeObjectURL(url);
+        reject(new Error('Canvas unavailable'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Unreadable image'));
+    };
+    img.src = url;
+  });
+}
 
 export function OwnerCmsModal({
-  isOpen,
   cms,
+  ownerToken,
+  onUnlock,
+  onLock,
   onUpdateCms,
   onResetCms,
   onClose,
 }: OwnerCmsModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialog(true, onClose, dialogRef);
+
   const [activeTab, setActiveTab] = useState<StudioTab>('categories');
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [passcode, setPasscode] = useState('');
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
+  const [halalAck, setHalalAck] = useState(false);
+  const [certForm, setCertForm] = useState({
+    certified: cms.halal.certified,
+    certificationBody: cms.halal.certificationBody,
+    certificateUrl: cms.halal.certificateUrl,
+  });
+  const [certError, setCertError] = useState<string | null>(null);
   const [frenchTacosAck, setFrenchTacosAck] = useState(false);
   const [linkInputs, setLinkInputs] = useState<Record<string, string>>({});
   const [linkErrors, setLinkErrors] = useState<Record<string, string>>({});
@@ -56,18 +114,66 @@ export function OwnerCmsModal({
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
-
+  const halalDisplay = getHalalDisplay(cms);
   const frenchTacosCategory = cms.menuCategories.find((c) => c.id === 'french-tacos');
   const jsonLdPreview = JSON.stringify(buildRestaurantJsonLd(cms), null, 2);
 
-  async function applyCmsUpdate(nextState: CmsState) {
+  async function applyCmsUpdate(nextState: CmsState): Promise<boolean> {
     setSaving(true);
+    setSaveError(null);
     try {
-      await onUpdateCms(nextState);
+      const result = await onUpdateCms(nextState);
+      if (!result.ok) {
+        setSaveError(result.error || 'Your change was not saved.');
+        return false;
+      }
+      return true;
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleUnlock(e: FormEvent) {
+    e.preventDefault();
+    const token = passcode.trim();
+    if (!token || unlocking) return;
+    setUnlocking(true);
+    setUnlockError(null);
+    try {
+      const resp = await fetch('/api/owner/session', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (resp.ok) {
+        setPasscode('');
+        onUnlock(token);
+        return;
+      }
+      const data = (await resp.json().catch(() => ({}))) as { error?: string };
+      setUnlockError(data.error || 'Could not unlock the Owner Studio.');
+    } catch {
+      setUnlockError('Could not reach the server.');
+    } finally {
+      setUnlocking(false);
+    }
+  }
+
+  async function handleReset() {
+    if (!window.confirm('Reset all owner settings to the defaults? This cannot be undone.')) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const result = await onResetCms();
+      if (!result.ok) setSaveError(result.error || 'Nothing was reset.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleSaveCertification() {
+    const { state, error } = setHalalCertification(cms, certForm);
+    setCertError(error ?? null);
+    if (!error) void applyCmsUpdate(state);
   }
 
   function handleVerifySocial(linkId: string) {
@@ -90,18 +196,24 @@ export function OwnerCmsModal({
 
   function handleOwnerPhotoSelect(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     setAiResult(null);
     setAiError(null);
-    setUploadMime(file.type || 'image/jpeg');
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setUploadPreview(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setAiError('Please choose a JPEG, PNG or WebP photo.');
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setAiError('That photo is larger than 15 MB. Please choose a smaller one.');
+      return;
+    }
+    downscaleImage(file)
+      .then((dataUrl) => {
+        setUploadMime('image/jpeg');
+        setUploadPreview(dataUrl);
+      })
+      .catch(() => setAiError('Could not read that photo. Please try another.'));
   }
 
   async function handleVerifyPhotoWithAi() {
@@ -112,7 +224,7 @@ export function OwnerCmsModal({
     try {
       const resp = await fetch('/api/analyze-photo', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ownerToken}` },
         body: JSON.stringify({
           imageBase64: uploadPreview,
           mimeType: uploadMime,
@@ -134,7 +246,7 @@ export function OwnerCmsModal({
     }
   }
 
-  function handlePublishOwnerPost(approved: boolean) {
+  async function handlePublishOwnerPost(approved: boolean) {
     if (!uploadPreview || !uploadTitle.trim()) return;
     const next = addOwnerSocialPost(cms, {
       platform: 'instagram',
@@ -149,47 +261,119 @@ export function OwnerCmsModal({
       verifiedByAi: Boolean(aiResult?.belongsToCasaStreet),
       aspectLabel: approved ? 'Instagram · Owner Approved' : 'Draft · Awaiting Approval',
     });
-    setUploadTitle('');
-    setUploadCaption('');
-    setUploadPreview(null);
-    setAiResult(null);
-    void applyCmsUpdate(next);
+    if (await applyCmsUpdate(next)) {
+      setUploadTitle('');
+      setUploadCaption('');
+      setUploadPreview(null);
+      setAiResult(null);
+    }
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Casa Street Owner CMS and Approval Studio"
-      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
-    >
-      <div className="w-full max-w-4xl bg-[#FAFAF7] text-[#141413] rounded-xl border border-[#D4CFC2] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-[60] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="owner-studio-title"
+        tabIndex={-1}
+        className="w-full max-w-4xl bg-[#FAFAF7] text-[#141413] rounded-xl border border-[#D4CFC2] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+      >
         {/* Header */}
         <div className="bg-[#141413] text-white px-6 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <ShieldCheck className="w-6 h-6 text-[#F59E0B] shrink-0" aria-hidden="true" />
             <div>
               <p className="text-xs text-neutral-400">Casa Street CMS · Approval Workflow</p>
-              <h2 className="font-display text-2xl font-bold uppercase tracking-tight">
+              <h2
+                id="owner-studio-title"
+                className="font-display text-xl sm:text-2xl font-bold uppercase tracking-tight"
+              >
                 Owner Publishing &amp; Verification Studio
               </h2>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close Owner Studio"
-            className="w-9 h-9 inline-flex items-center justify-center rounded-md text-neutral-300 hover:text-white hover:bg-white/10"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            {ownerToken && (
+              <button
+                type="button"
+                onClick={onLock}
+                className="inline-flex items-center gap-1.5 min-h-11 px-3 rounded-md text-xs font-semibold uppercase tracking-wider text-neutral-300 hover:text-white hover:bg-white/10"
+              >
+                <Lock className="w-4 h-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Lock</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close Owner Studio"
+              className="w-11 h-11 inline-flex items-center justify-center rounded-md text-neutral-300 hover:text-white hover:bg-white/10"
+            >
+              <X className="w-5 h-5" aria-hidden="true" />
+            </button>
+          </div>
         </div>
+
+        {!ownerToken ? (
+          <form onSubmit={handleUnlock} className="p-6 sm:p-10 space-y-5 overflow-y-auto">
+            <div className="flex items-start gap-3">
+              <KeyRound className="w-6 h-6 text-[#C8281E] shrink-0 mt-1" aria-hidden="true" />
+              <div className="space-y-1">
+                <h3 className="font-display text-2xl font-bold uppercase">Owner passcode required</h3>
+                <p className="text-sm text-neutral-700 max-w-lg">
+                  Enter the passcode set in the server&apos;s <code>OWNER_CMS_TOKEN</code> secret to
+                  review drafts and publish changes. Visitors cannot change anything on the site.
+                </p>
+              </div>
+            </div>
+            <div className="max-w-md space-y-2">
+              <label htmlFor="owner-passcode" className="block text-xs font-semibold">
+                Passcode
+              </label>
+              <input
+                id="owner-passcode"
+                type="password"
+                autoComplete="current-password"
+                data-autofocus
+                value={passcode}
+                onChange={(e) => setPasscode(e.target.value)}
+                className="w-full min-h-11 px-3 py-2 text-sm border border-[#D4CFC2] rounded-md bg-white"
+              />
+              {unlockError && (
+                <p role="alert" className="text-sm text-red-700">
+                  {unlockError}
+                </p>
+              )}
+            </div>
+            <button
+              type="submit"
+              disabled={unlocking || !passcode.trim()}
+              className="inline-flex items-center gap-2 min-h-11 px-5 bg-[#141413] hover:bg-[#C8281E] disabled:opacity-45 text-white text-xs font-semibold uppercase tracking-wider rounded-md"
+            >
+              {unlocking ? (
+                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <KeyRound className="w-4 h-4" aria-hidden="true" />
+              )}
+              <span>Unlock Owner Studio</span>
+            </button>
+          </form>
+        ) : (
+        <>
+        {saveError && (
+          <div role="alert" className="px-6 py-3 bg-red-50 border-b border-red-200 text-sm text-red-800 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+            <span>{saveError}</span>
+          </div>
+        )}
 
         {/* Navigation Tabs */}
         <div className="px-6 py-3 bg-[#F1EFEA] border-b border-[#E4E0D5] flex items-center gap-2 overflow-x-auto">
           {[
             { id: 'categories', label: 'Menu & Drafts' },
+            { id: 'halal', label: 'Halal' },
             { id: 'socialLinks', label: 'Social Links' },
             { id: 'socialFeed', label: 'Follow Feed' },
             { id: 'schema', label: 'Structured Data' },
@@ -198,7 +382,8 @@ export function OwnerCmsModal({
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id as StudioTab)}
-              className={`px-3.5 py-2 text-xs font-semibold uppercase tracking-wider rounded-md transition-colors whitespace-nowrap shrink-0 ${
+              aria-pressed={activeTab === tab.id}
+              className={`min-h-10 px-3.5 py-2 text-xs font-semibold uppercase tracking-wider rounded-md transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === tab.id
                   ? 'bg-[#141413] text-white'
                   : 'bg-white border border-[#D4CFC2] text-neutral-700 hover:text-[#141413]'
@@ -339,6 +524,161 @@ export function OwnerCmsModal({
                       </span>
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: Halal messaging (owner-controlled) */}
+          {activeTab === 'halal' && (
+            <div className="space-y-6">
+              <div className="rounded-xl border border-[#D4CFC2] bg-white p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <p
+                      className={`text-xs font-semibold uppercase tracking-wider ${
+                        halalDisplay.show ? 'text-emerald-700' : 'text-amber-800'
+                      }`}
+                    >
+                      {halalDisplay.show ? 'Live on the website' : 'Hidden from the website'}
+                    </p>
+                    <h3 className="font-display text-3xl font-bold uppercase">Halal food messaging</h3>
+                    <p className="text-sm text-neutral-700 max-w-xl">
+                      Controls the 100% HALAL badge in the hero, the &ldquo;Halal Moroccan Street
+                      Food&rdquo; and &ldquo;100% halal meat &amp; chicken&rdquo; wording, halal tags
+                      on dishes, the About and footer copy, and halal details in Google structured
+                      data. No certification wording is shown unless you turn it on below.
+                    </p>
+                  </div>
+                  {halalDisplay.show && <HalalBadge />}
+                </div>
+
+                {!halalDisplay.show ? (
+                  <div className="space-y-3 pt-2">
+                    <label className="flex items-start gap-2.5 text-sm text-neutral-800 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={halalAck}
+                        onChange={(e) => setHalalAck(e.target.checked)}
+                        className="mt-1 w-4 h-4 accent-[#1f6b45]"
+                      />
+                      <span>
+                        I confirm as Casa Street&apos;s owner that the meat and chicken Casa Street
+                        serves are 100% halal and approve showing this on the website.
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      disabled={!halalAck || saving}
+                      onClick={() => void applyCmsUpdate(setHalalConfirmation(cms, true))}
+                      className="inline-flex items-center gap-2 min-h-11 px-5 bg-[#1f6b45] hover:bg-[#17553a] disabled:opacity-45 text-white text-xs font-semibold uppercase tracking-wider rounded-md"
+                    >
+                      <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
+                      <span>Show halal messaging</span>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      setHalalAck(false);
+                      void applyCmsUpdate(setHalalConfirmation(cms, false));
+                    }}
+                    className="inline-flex items-center gap-2 min-h-11 px-5 bg-[#141413] hover:bg-neutral-800 text-white text-xs font-semibold uppercase tracking-wider rounded-md"
+                  >
+                    <EyeOff className="w-4 h-4" aria-hidden="true" />
+                    <span>Hide halal messaging</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-[#E4E0D5] bg-white p-6 space-y-4">
+                <h4 className="font-display text-xl font-bold uppercase">Halal certificate (optional)</h4>
+                <p className="text-sm text-neutral-700">
+                  Off by default. Only tick this if you want certification mentioned on the site
+                  (it then says &ldquo;certified&rdquo;, or &ldquo;certified by &hellip;&rdquo; if
+                  you name the body) and optionally link to the certificate.
+                </p>
+                <label className="flex items-center gap-2.5 text-sm text-neutral-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={certForm.certified}
+                    disabled={!halalDisplay.show}
+                    onChange={(e) => setCertForm((f) => ({ ...f, certified: e.target.checked }))}
+                    className="w-4 h-4 accent-[#1f6b45]"
+                  />
+                  <span>Casa Street holds a halal certificate</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="halal-body" className="block text-xs font-semibold mb-1">
+                      Certifying body (optional)
+                    </label>
+                    <input
+                      id="halal-body"
+                      type="text"
+                      maxLength={80}
+                      value={certForm.certificationBody}
+                      onChange={(e) => setCertForm((f) => ({ ...f, certificationBody: e.target.value }))}
+                      className="w-full min-h-11 px-3 py-2 text-sm border border-[#D4CFC2] rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="halal-url" className="block text-xs font-semibold mb-1">
+                      Certificate link (https://, optional)
+                    </label>
+                    <input
+                      id="halal-url"
+                      type="url"
+                      value={certForm.certificateUrl}
+                      onChange={(e) => setCertForm((f) => ({ ...f, certificateUrl: e.target.value }))}
+                      className="w-full min-h-11 px-3 py-2 text-sm border border-[#D4CFC2] rounded-md"
+                    />
+                  </div>
+                </div>
+                {certError && <p className="text-xs text-red-700">{certError}</p>}
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={handleSaveCertification}
+                  className="inline-flex items-center gap-2 min-h-11 px-5 bg-[#141413] hover:bg-[#1f6b45] disabled:opacity-45 text-white text-xs font-semibold uppercase tracking-wider rounded-md"
+                >
+                  Save certificate details
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="font-display text-xl font-bold uppercase">Halal tags on dishes</h4>
+                <p className="text-sm text-neutral-700">
+                  Tagged dishes show a halal label on the menu while halal messaging is live.
+                </p>
+                <div className="divide-y divide-[#E4E0D5] border border-[#E4E0D5] rounded-xl bg-white">
+                  {cms.menuCategories.flatMap((cat) =>
+                    cat.items.map((item) => (
+                      <label
+                        key={item.id}
+                        className="flex items-center justify-between gap-4 px-4 py-3 text-sm cursor-pointer"
+                      >
+                        <span>
+                          <span className="font-semibold text-[#141413]">{item.name}</span>
+                          <span className="block text-xs text-neutral-500">
+                            {cat.title}
+                            {!cat.published ? ' · draft' : ''}
+                          </span>
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={item.halal === true}
+                          disabled={saving}
+                          onChange={(e) =>
+                            void applyCmsUpdate(setMenuItemHalal(cms, item.id, e.target.checked))
+                          }
+                          className="w-5 h-5 accent-[#1f6b45] shrink-0"
+                        />
+                      </label>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -548,7 +888,7 @@ export function OwnerCmsModal({
                         <button
                           type="button"
                           disabled={!uploadTitle.trim() || saving}
-                          onClick={() => handlePublishOwnerPost(true)}
+                          onClick={() => void handlePublishOwnerPost(true)}
                           className="px-4 py-2 bg-[#C8281E] hover:bg-[#AD2017] disabled:opacity-45 text-white text-xs font-semibold uppercase tracking-wider rounded-md"
                         >
                           Approve &amp; Publish
@@ -556,7 +896,7 @@ export function OwnerCmsModal({
                         <button
                           type="button"
                           disabled={!uploadTitle.trim() || saving}
-                          onClick={() => handlePublishOwnerPost(false)}
+                          onClick={() => void handlePublishOwnerPost(false)}
                           className="px-4 py-2 border border-[#D4CFC2] text-xs font-semibold uppercase tracking-wider rounded-md"
                         >
                           Save as Draft
@@ -630,7 +970,7 @@ export function OwnerCmsModal({
                 <button
                   type="button"
                   disabled={saving}
-                  onClick={() => void onResetCms()}
+                  onClick={() => void handleReset()}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-[#D4CFC2] hover:border-[#141413] text-xs font-semibold uppercase tracking-wider rounded-md"
                 >
                   <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
@@ -665,6 +1005,8 @@ export function OwnerCmsModal({
             </div>
           )}
         </div>
+        </>
+        )}
       </div>
     </div>
   );

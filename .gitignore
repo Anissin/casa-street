@@ -6,3 +6,7 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Runtime CMS data written by the server (owner edits)
+.casa-cms-state.json
+*.tmp

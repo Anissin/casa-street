@@ -1,96 +1,170 @@
-import { useState } from 'react';
-import { ArrowUpRight, UtensilsCrossed } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { ArrowUpRight } from 'lucide-react';
 import {
   type CmsState,
   type MenuCategory,
   type MenuCategoryId,
   type MenuItem,
+  getHalalDisplay,
   getPublicMenuCategories,
+  isItemHalal,
 } from '../lib/cms';
+import { HalalTag } from './HalalBadge';
 
-interface SignatureMenuSectionProps {
-  cms: CmsState;
+/** Stable anchors used by the navigation (must exist whenever "All" is shown). */
+const CATEGORY_ANCHORS: Record<MenuCategoryId, string> = {
+  'signature-sandwiches': 'sandwiches',
+  'msemen-wraps': 'msemen',
+  tagines: 'tagines',
+  'french-tacos': 'french-tacos',
+};
+
+const FILTER_LABELS: Record<MenuCategoryId, string> = {
+  'signature-sandwiches': 'Sandwiches',
+  'msemen-wraps': 'Msemen & Wraps',
+  tagines: 'Tagine & Drinks',
+  'french-tacos': 'French Tacos',
+};
+
+/** Designed placeholder used where no genuine photo of the dish exists yet. */
+function DishTile({ item }: { item: MenuItem }) {
+  const shortName = item.name.replace(/\s*\(.*\)\s*/, '');
+  return (
+    <div
+      aria-hidden="true"
+      className="relative flex h-full w-full flex-col items-center justify-center gap-2 bg-ink-2 bg-zellige p-6 text-center"
+    >
+      <span className="text-[11px] font-semibold uppercase tracking-[0.3em] text-saffron">
+        Casa Street
+      </span>
+      <span className="font-display text-4xl font-extrabold uppercase leading-[0.95] text-white text-balance sm:text-5xl">
+        {shortName}
+      </span>
+      <span className="text-xs text-white/60">{item.breadOrVessel}</span>
+    </div>
+  );
 }
 
-function MenuCard({ item, isSecondary = false }: { item: MenuItem; isSecondary?: boolean }) {
+function MenuCard({
+  item,
+  halal,
+  featured = false,
+  muted = false,
+}: {
+  item: MenuItem;
+  halal: boolean;
+  featured?: boolean;
+  muted?: boolean;
+}) {
   const [imgError, setImgError] = useState(false);
+  const hasPhoto = Boolean(item.image) && !imgError;
 
   return (
     <article
-      className={`group flex flex-col rounded-xl overflow-hidden border transition-transform duration-200 hover:-translate-y-0.5 ${
-        isSecondary
-          ? 'bg-[#F1EFEA] border-[#E4E0D5]'
-          : 'bg-white border-[#E4E0D5]'
-      }`}
+      className={`group relative flex flex-col overflow-hidden rounded-2xl ring-1 ring-line transition duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-ink/10 ${
+        muted ? 'bg-sand' : 'bg-white shadow-sm'
+      } ${featured ? 'md:col-span-2 md:flex-row' : ''}`}
     >
-      <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#1E1D1B]">
-        {!imgError ? (
+      <div
+        className={`relative aspect-[4/3] w-full shrink-0 overflow-hidden bg-ink-2 ${
+          featured ? 'md:aspect-auto md:w-[55%]' : ''
+        }`}
+      >
+        {hasPhoto ? (
           <img
             src={item.image}
+            srcSet={item.imageSrcSet}
+            sizes={
+              featured
+                ? '(min-width: 1280px) 780px, (min-width: 768px) 60vw, 92vw'
+                : '(min-width: 1280px) 400px, (min-width: 768px) 46vw, 92vw'
+            }
             alt={item.imageAlt}
-            referrerPolicy="no-referrer"
+            width={960}
+            height={720}
+            loading="lazy"
+            decoding="async"
             onError={() => setImgError(true)}
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
           />
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center gap-2 p-4 bg-gradient-to-br from-[#26231F] to-[#141413] text-neutral-300">
-            <UtensilsCrossed className="w-8 h-8 text-[#F59E0B]" aria-hidden="true" />
-            <span className="font-display text-lg uppercase">{item.name}</span>
-          </div>
+          <DishTile item={item} />
         )}
+
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3">
+          {halal ? <HalalTag /> : <span />}
+          {hasPhoto && item.imageIsIllustrative && (
+            <span className="rounded-full bg-black/60 px-2.5 py-1 text-[10px] font-medium text-white/90 backdrop-blur-sm">
+              Illustrative image
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="p-6 flex-1 flex flex-col justify-between gap-5">
-        <div className="space-y-2.5">
-          <div className="text-xs font-medium text-neutral-600">
-            {item.cityInspiration && (
-              <>
-                <span className="text-[#C8281E] font-semibold">{item.cityInspiration}</span>
-                <span aria-hidden="true" className="mx-1.5 text-neutral-400">·</span>
-              </>
-            )}
-            <span>{item.breadOrVessel}</span>
-          </div>
-
-          <div className="flex items-baseline justify-between gap-3">
-            <h3 className="font-display text-2xl font-bold uppercase tracking-tight text-[#141413]">
-              {item.name}
-            </h3>
-            {item.verifiedPrice && (
-              <span className="font-mono text-base font-semibold text-[#141413] whitespace-nowrap shrink-0">
-                {item.verifiedPrice}
+      <div className={`flex flex-1 flex-col gap-4 p-5 sm:p-6 ${featured ? 'md:justify-center md:p-8 lg:p-10' : ''}`}>
+        <p className="text-xs font-medium text-neutral-600">
+          {item.cityInspiration && (
+            <>
+              <span className="font-semibold text-casa">{item.cityInspiration}</span>
+              <span aria-hidden="true" className="mx-1.5 text-neutral-400">
+                ·
               </span>
-            )}
-          </div>
+            </>
+          )}
+          <span>{item.breadOrVessel}</span>
+        </p>
 
-          <p className="text-sm text-neutral-700 leading-relaxed">{item.description}</p>
+        <div className="flex items-start justify-between gap-4">
+          <h4
+            className={`font-display font-extrabold uppercase leading-[0.95] tracking-tight text-ink ${
+              featured ? 'text-4xl lg:text-5xl' : 'text-[1.75rem]'
+            }`}
+          >
+            {item.name}
+          </h4>
+          {item.verifiedPrice && (
+            <p
+              className={`shrink-0 whitespace-nowrap font-display font-bold tabular-nums text-ink ${
+                featured ? 'text-3xl' : 'text-2xl'
+              }`}
+            >
+              {item.verifiedPrice}
+            </p>
+          )}
         </div>
 
-        <div className="pt-4 border-t border-[#E4E0D5] flex flex-wrap items-center justify-between gap-2">
-          <span className="text-xs text-neutral-600">
-            {item.priceSourceNote || 'Uber Eats & Deliveroo'}
-          </span>
+        <p className={`leading-relaxed text-neutral-700 ${featured ? 'text-base' : 'text-sm'}`}>
+          {item.description}
+        </p>
 
-          <div className="flex items-center gap-2 shrink-0">
+        <div className="mt-auto space-y-2 pt-2">
+          {item.verifiedPrice && (
+            <p className="text-[11px] text-neutral-500">
+              Price on {item.priceSourceNote || 'Uber Eats & Deliveroo'}
+            </p>
+          )}
+          <div className={`grid gap-2 ${item.deliverooUrl ? 'grid-cols-2' : 'grid-cols-1'}`}>
             <a
               href={item.orderUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider bg-[#141413] hover:bg-[#C8281E] text-white rounded-md transition-colors whitespace-nowrap"
+              aria-label={`Order ${item.name} on Uber Eats (opens in a new tab)`}
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-ink px-4 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-casa"
             >
               <span>Uber Eats</span>
-              <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
+              <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
             </a>
-
             {item.deliverooUrl && (
               <a
                 href={item.deliverooUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider bg-[#00CCBC] hover:bg-[#00B3A5] text-[#141413] rounded-md transition-colors whitespace-nowrap"
+                aria-label={`Order ${item.name} on Deliveroo (opens in a new tab)`}
+                className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-roo px-4 text-xs font-bold uppercase tracking-wider text-ink transition-colors hover:bg-roo-dark"
               >
                 <span>Deliveroo</span>
-                <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
+                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
               </a>
             )}
           </div>
@@ -100,134 +174,174 @@ function MenuCard({ item, isSecondary = false }: { item: MenuItem; isSecondary?:
   );
 }
 
-export function SignatureMenuSection({ cms }: SignatureMenuSectionProps) {
+function CategoryBlock({
+  category,
+  cms,
+  secondary = false,
+}: {
+  category: MenuCategory;
+  cms: CmsState;
+  secondary?: boolean;
+}) {
+  const isSandwiches = category.id === 'signature-sandwiches';
+  const headingId = `menu-${CATEGORY_ANCHORS[category.id]}-heading`;
+  return (
+    <div
+      id={CATEGORY_ANCHORS[category.id]}
+      aria-labelledby={headingId}
+      role="region"
+      className={`space-y-6 ${secondary ? 'border-t border-line pt-10' : ''}`}
+    >
+      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-casa">
+            {category.kicker}
+          </p>
+          <h3
+            id={headingId}
+            className={`mt-1 font-display font-extrabold uppercase tracking-tight text-ink ${
+              secondary ? 'text-3xl' : 'text-4xl'
+            }`}
+          >
+            {category.title}
+          </h3>
+        </div>
+        <p className="max-w-md text-sm leading-relaxed text-neutral-600">{category.description}</p>
+      </div>
+
+      <div
+        className={`grid gap-5 lg:gap-6 ${
+          category.items.length >= 3
+            ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+            : 'grid-cols-1 md:grid-cols-2'
+        }`}
+      >
+        {category.items.map((item, index) => (
+          <MenuCard
+            key={item.id}
+            item={item}
+            halal={isItemHalal(cms, item)}
+            featured={isSandwiches && index === 0 && category.items.length >= 3}
+            muted={secondary}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function SignatureMenuSection({ cms }: { cms: CmsState }) {
   const publicCategories = getPublicMenuCategories(cms);
+  const halal = getHalalDisplay(cms);
   const [selectedFilter, setSelectedFilter] = useState<'all' | MenuCategoryId>('all');
 
-  const visibleCategories: MenuCategory[] =
+  // Nav links (#sandwiches, #msemen, …) must always land on their section, even
+  // when a filter has hidden it: reset the filter synchronously before the
+  // browser performs the default anchor scroll.
+  useEffect(() => {
+    if (selectedFilter === 'all') return;
+    const anchors = new Set(['menu', ...Object.values(CATEGORY_ANCHORS)]);
+    function onClick(e: MouseEvent) {
+      const link = (e.target as Element | null)?.closest?.('a[href^="#"]');
+      const id = link?.getAttribute('href')?.slice(1);
+      if (id && anchors.has(id)) {
+        flushSync(() => setSelectedFilter('all'));
+      }
+    }
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, [selectedFilter]);
+
+  const visibleCategories =
     selectedFilter === 'all'
       ? publicCategories
       : publicCategories.filter((cat) => cat.id === selectedFilter);
-
   const primaryCategories = visibleCategories.filter((c) => c.priority !== 'secondary');
   const secondaryCategories = visibleCategories.filter((c) => c.priority === 'secondary');
 
+  const filters: Array<{ id: 'all' | MenuCategoryId; label: string }> = [
+    { id: 'all', label: 'Full Menu' },
+    ...publicCategories.map((cat) => ({ id: cat.id, label: FILTER_LABELS[cat.id] ?? cat.title })),
+  ];
+
   return (
-    <section id="sandwiches" className="py-16 lg:py-24 bg-[#FAFAF7] text-[#141413]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-        {/* Section Heading & Filter Tabs */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 border-b border-[#E4E0D5] pb-8">
-          <div className="space-y-2 max-w-2xl">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[#C8281E]">
-              145–147 Edgware Road · Paddington Menu
+    <section
+      id="menu"
+      aria-labelledby="menu-heading"
+      className="relative bg-cream py-16 text-ink lg:py-24"
+    >
+      <div className="mx-auto max-w-7xl space-y-12 px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col justify-between gap-8 border-b border-line pb-8 lg:flex-row lg:items-end">
+          <div className="max-w-xl space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-casa">
+              The Menu · 145–147 Edgware Road
             </p>
-            <h2 className="font-display text-4xl sm:text-5xl font-extrabold uppercase tracking-tight text-[#141413] text-balance">
+            <h2
+              id="menu-heading"
+              className="font-display text-5xl font-extrabold uppercase leading-[0.92] tracking-tight text-balance sm:text-6xl"
+            >
               Oversized Sandwiches &amp; Msemen Wraps
             </h2>
-            <p className="text-base text-neutral-700 leading-relaxed">
-              Casa Street’s real Paddington street-food lineup with verified Uber Eats &amp;
-              Deliveroo pricing and official kitchen photography.
+            <p className="text-base leading-relaxed text-neutral-700">
+              {halal.show ? 'Halal Moroccan street food' : 'Moroccan street food'}, built big and
+              loaded. Prices are as listed on Uber Eats and Deliveroo.
             </p>
+            {halal.show && (
+              <p className="flex items-center gap-2.5 pt-1 text-sm text-neutral-700">
+                <HalalTag />
+                <span>
+                  100% halal meat &amp; chicken
+                  {halal.certified
+                    ? halal.certificationBody
+                      ? `, certified by ${halal.certificationBody}.`
+                      : ', certified.'
+                    : '.'}{' '}
+                  Halal dishes are tagged.
+                </span>
+              </p>
+            )}
           </div>
 
           <div
-            role="tablist"
-            aria-label="Filter menu categories"
-            className="flex flex-wrap items-center gap-1.5 p-1 bg-[#F1EFEA] border border-[#E4E0D5] rounded-lg shrink-0"
+            role="group"
+            aria-label="Filter the menu"
+            className="no-scrollbar -mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 lg:shrink-0 lg:flex-nowrap lg:justify-end"
           >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={selectedFilter === 'all'}
-              onClick={() => setSelectedFilter('all')}
-              className={`px-3.5 py-2 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 ${
-                selectedFilter === 'all'
-                  ? 'bg-[#141413] text-white'
-                  : 'text-neutral-700 hover:text-[#141413]'
-              }`}
-            >
-              All Published
-            </button>
-            {publicCategories.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                role="tab"
-                aria-selected={selectedFilter === cat.id}
-                onClick={() => setSelectedFilter(cat.id)}
-                className={`px-3.5 py-2 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 ${
-                  selectedFilter === cat.id
-                    ? 'bg-[#141413] text-white'
-                    : 'text-neutral-700 hover:text-[#141413]'
-                }`}
-              >
-                {cat.id === 'signature-sandwiches'
-                  ? 'Sandwiches'
-                  : cat.id === 'msemen-wraps'
-                    ? 'Msemen & Wraps'
-                    : cat.id === 'tagines'
-                      ? 'Tagines & Tea'
-                      : cat.title}
-              </button>
-            ))}
+            {filters.map((filter) => {
+              const active = selectedFilter === filter.id;
+              return (
+                <button
+                  key={filter.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setSelectedFilter(filter.id)}
+                  className={`min-h-11 shrink-0 snap-start whitespace-nowrap rounded-full px-4 text-sm font-semibold transition-colors xl:px-5 ${
+                    active
+                      ? 'bg-ink text-white'
+                      : 'bg-white text-neutral-700 ring-1 ring-line hover:text-ink hover:ring-ink/30'
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Primary Street-Food Categories */}
-        {primaryCategories.map((category) => (
-          <div
-            key={category.id}
-            id={category.id === 'msemen-wraps' ? 'msemen' : category.id}
-            className="space-y-6"
-          >
-            <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2">
-              <div>
-                <p className="text-xs font-medium text-neutral-600">{category.kicker}</p>
-                <h3 className="font-display text-3xl font-bold uppercase tracking-tight text-[#141413] mt-0.5">
-                  {category.title}
-                </h3>
-              </div>
-              <p className="text-sm text-neutral-600 max-w-md">{category.description}</p>
-            </div>
+        <p role="status" className="sr-only">
+          {selectedFilter === 'all'
+            ? 'Showing the full menu'
+            : `Showing ${filters.find((f) => f.id === selectedFilter)?.label ?? 'selected'} only`}
+        </p>
 
-            <div
-              className={`grid gap-6 ${
-                category.items.length >= 3
-                  ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-                  : 'grid-cols-1 md:grid-cols-2'
-              }`}
-            >
-              {category.items.map((item) => (
-                <MenuCard key={item.id} item={item} />
-              ))}
-            </div>
-          </div>
-        ))}
-
-        {/* Secondary Traditional Tagines & Drinks */}
-        {secondaryCategories.map((category) => (
-          <div
-            key={category.id}
-            id={category.id}
-            className="pt-8 border-t border-[#E4E0D5] space-y-6"
-          >
-            <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2">
-              <div>
-                <p className="text-xs font-medium text-neutral-500">{category.kicker}</p>
-                <h3 className="font-display text-2xl font-bold uppercase tracking-tight text-neutral-800 mt-0.5">
-                  {category.title}
-                </h3>
-              </div>
-              <p className="text-sm text-neutral-600 max-w-md">{category.description}</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {category.items.map((item) => (
-                <MenuCard key={item.id} item={item} isSecondary />
-              ))}
-            </div>
-          </div>
-        ))}
+        <div className="space-y-16">
+          {primaryCategories.map((category) => (
+            <CategoryBlock key={category.id} category={category} cms={cms} />
+          ))}
+          {secondaryCategories.map((category) => (
+            <CategoryBlock key={category.id} category={category} cms={cms} secondary />
+          ))}
+        </div>
       </div>
     </section>
   );

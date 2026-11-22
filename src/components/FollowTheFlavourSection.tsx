@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ArrowUpRight, Instagram, Play, X, Share2, MessageCircle } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { ArrowUpRight, Instagram, MessageCircle, Play, Share2, X } from 'lucide-react';
 import {
   type CmsState,
   type SocialPost,
@@ -7,16 +7,67 @@ import {
   getApprovedSocialPosts,
   getPublicSocialLinks,
 } from '../lib/cms';
+import { useDialog } from '../lib/useDialog';
 
-interface FollowTheFlavourSectionProps {
-  cms: CmsState;
-  onOpenOwnerStudio: () => void;
+function ReelDialog({ post, onClose }: { post: SocialPost; onClose: () => void }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialog(true, onClose, dialogRef);
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reel-title"
+        className="w-full max-w-xl overflow-hidden rounded-2xl border border-white/20 bg-ink-2 text-white"
+      >
+        <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-4">
+          <div>
+            <p className="text-xs font-medium text-saffron">{post.aspectLabel}</p>
+            <h3 id="reel-title" className="font-display text-2xl font-bold uppercase">
+              {post.title}
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close video"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full text-neutral-300 hover:bg-white/10 hover:text-white"
+          >
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
+        <div className="relative aspect-[4/3] bg-black">
+          <video
+            src={post.videoEmbedUrl}
+            controls
+            playsInline
+            preload="metadata"
+            className="h-full w-full object-cover"
+          />
+        </div>
+        <div className="flex items-center justify-between gap-4 border-t border-white/10 px-5 py-4">
+          <p className="text-sm text-neutral-300">{post.caption}</p>
+          <a
+            href={post.postUrl || VERIFIED_INSTAGRAM_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full bg-casa px-4 text-xs font-bold uppercase tracking-wider text-white hover:bg-casa-dark"
+          >
+            <span>Instagram</span>
+            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </a>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-export function FollowTheFlavourSection({
-  cms,
-  onOpenOwnerStudio,
-}: FollowTheFlavourSectionProps) {
+export function FollowTheFlavourSection({ cms }: { cms: CmsState }) {
   const approvedPosts = getApprovedSocialPosts(cms);
   const followLinks = getPublicSocialLinks(cms, 'follow');
   const [activeVideoPost, setActiveVideoPost] = useState<SocialPost | null>(null);
@@ -25,21 +76,24 @@ export function FollowTheFlavourSection({
   return (
     <section
       id="follow-the-flavour"
-      className="py-16 lg:py-24 bg-[#141413] text-white border-y border-white/10"
+      aria-labelledby="follow-heading"
+      className="bg-ink py-16 text-white lg:py-24"
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-        {/* Header & Verified Social Links */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[#F59E0B]">
-              Approved Kitchen Feed · @casastreetldn
+      <div className="mx-auto max-w-7xl space-y-10 px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+          <div className="max-w-2xl space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-saffron">
+              @casastreetldn on Instagram
             </p>
-            <h2 className="font-display text-4xl sm:text-5xl font-extrabold uppercase tracking-tight text-white">
-              FOLLOW THE FLAVOUR
+            <h2
+              id="follow-heading"
+              className="font-display text-5xl font-extrabold uppercase leading-[0.92] tracking-tight sm:text-6xl"
+            >
+              Follow the Flavour
             </h2>
-            <p className="text-base text-neutral-300 leading-relaxed">
-              Only owner-approved Casa Street sandwiches, msemen wraps, and verified social channels
-              appear here—never unverified profiles or external vendor shots.
+            <p className="text-base leading-relaxed text-neutral-300">
+              See what&apos;s coming off the grill at Casa Street and follow us on Instagram for
+              the latest from Edgware Road.
             </p>
           </div>
 
@@ -52,176 +106,113 @@ export function FollowTheFlavourSection({
                   href={link.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`inline-flex items-center gap-2 min-h-11 px-4 py-2.5 rounded-md text-xs font-semibold uppercase tracking-wider transition-colors whitespace-nowrap shrink-0 ${
+                  className={`inline-flex min-h-12 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-6 text-xs font-bold uppercase tracking-wider transition ${
                     isInstagram
-                      ? 'bg-[#C8281E] hover:bg-[#AD2017] text-white'
-                      : 'bg-white/10 hover:bg-white/15 border border-white/20 text-white'
+                      ? 'bg-casa text-white shadow-lg shadow-casa/30 hover:-translate-y-0.5 hover:bg-casa-dark'
+                      : 'border border-white/20 bg-white/5 text-white hover:bg-white/10'
                   }`}
                 >
-                  {link.platform === 'instagram' && (
-                    <Instagram className="w-4 h-4" aria-hidden="true" />
-                  )}
+                  {link.platform === 'instagram' && <Instagram className="h-4 w-4" aria-hidden="true" />}
                   {link.platform === 'whatsapp' && (
-                    <MessageCircle className="w-4 h-4 text-[#F59E0B]" aria-hidden="true" />
+                    <MessageCircle className="h-4 w-4 text-saffron" aria-hidden="true" />
                   )}
                   {(link.platform === 'tiktok' || link.platform === 'facebook') && (
-                    <Share2 className="w-4 h-4 text-[#F59E0B]" aria-hidden="true" />
+                    <Share2 className="h-4 w-4 text-saffron" aria-hidden="true" />
                   )}
-                  <span>{link.label}</span>
-                  <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>{isInstagram ? 'Follow @casastreetldn' : link.label}</span>
+                  <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </a>
               );
             })}
           </div>
         </div>
 
-        {/* Approved Social Grid */}
-        {approvedPosts.length === 0 ? (
-          <div className="rounded-xl border border-white/15 bg-[#1E1D1B] p-8 text-center space-y-3">
-            <p className="text-neutral-300">No approved social features are currently published.</p>
-            <button
-              type="button"
-              onClick={onOpenOwnerStudio}
-              className="px-4 py-2 text-xs font-semibold uppercase tracking-wider bg-white/10 hover:bg-white/20 text-white rounded-md"
-            >
-              Review Drafts in Owner CMS
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {approvedPosts.map((post) => (
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
+          {approvedPosts.map((post) => {
+            const hasVideo = post.mediaType === 'video' && Boolean(post.videoEmbedUrl);
+            return (
               <article
                 key={post.id}
-                className="group relative rounded-xl overflow-hidden border border-white/15 bg-[#1E1D1B] flex flex-col justify-between transition-transform duration-200 hover:-translate-y-1"
+                className="group relative flex flex-col overflow-hidden rounded-2xl bg-ink-2 ring-1 ring-white/10 transition duration-300 hover:-translate-y-1 hover:ring-white/25"
               >
-                <div className="relative aspect-[4/3] overflow-hidden bg-[#181715]">
+                <div className="relative aspect-[4/3] overflow-hidden bg-ink-3">
                   {!failedImages[post.id] ? (
                     <img
                       src={post.mediaUrl}
                       alt={post.mediaAlt}
-                      referrerPolicy="no-referrer"
-                      onError={() =>
-                        setFailedImages((prev) => ({ ...prev, [post.id]: true }))
-                      }
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      width={960}
+                      height={720}
+                      loading="lazy"
+                      decoding="async"
+                      sizes="(min-width: 1024px) 400px, (min-width: 768px) 46vw, 92vw"
+                      onError={() => setFailedImages((prev) => ({ ...prev, [post.id]: true }))}
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-[#24221F] text-neutral-400 text-sm">
+                    <div className="flex h-full w-full items-center justify-center bg-zellige text-sm text-neutral-400">
                       {post.title}
                     </div>
                   )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
 
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
-
-                  {post.mediaType === 'video' && (
+                  {hasVideo && (
                     <button
                       type="button"
                       onClick={() => setActiveVideoPost(post)}
-                      aria-label={`Play kitchen reel preview for ${post.title}`}
-                      className="absolute top-4 right-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-black/75 hover:bg-[#C8281E] text-white text-xs font-semibold uppercase tracking-wider border border-white/20 transition-colors"
+                      aria-label={`Play video: ${post.title}`}
+                      className="absolute right-4 top-4 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/20 bg-black/70 px-4 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-casa"
                     >
-                      <Play className="w-3.5 h-3.5 fill-current" aria-hidden="true" />
-                      <span>Watch Reel</span>
+                      <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+                      <span>Watch</span>
                     </button>
                   )}
 
-                  <div className="absolute inset-x-0 bottom-0 p-5 space-y-1">
+                  <div className="absolute inset-x-0 bottom-0 space-y-1 p-5">
                     <p className="text-xs text-neutral-300">{post.aspectLabel}</p>
-                    <h3 className="font-display text-2xl font-bold uppercase tracking-tight text-white">
+                    <h3 className="font-display text-2xl font-bold uppercase leading-tight tracking-tight text-white">
                       {post.title}
                     </h3>
                   </div>
                 </div>
 
-                <div className="p-5 flex flex-col justify-between gap-4 flex-1">
-                  <p className="text-sm text-neutral-300 leading-relaxed">{post.caption}</p>
-
-                  <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs">
-                    <span className="text-neutral-400">
-                      Owner Supplied · Approved
-                    </span>
-                    <a
-                      href={post.postUrl || VERIFIED_INSTAGRAM_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-white hover:text-[#F59E0B] font-semibold transition-colors whitespace-nowrap"
-                    >
-                      <span>View on Instagram</span>
-                      <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
-                    </a>
-                  </div>
+                <div className="flex flex-1 flex-col justify-between gap-4 p-5">
+                  <p className="text-sm leading-relaxed text-neutral-300">{post.caption}</p>
+                  <a
+                    href={post.postUrl || VERIFIED_INSTAGRAM_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-11 items-center gap-1.5 self-start text-sm font-semibold text-white transition-colors hover:text-saffron"
+                  >
+                    <Instagram className="h-4 w-4" aria-hidden="true" />
+                    <span>View on Instagram</span>
+                    <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  </a>
                 </div>
               </article>
-            ))}
-          </div>
-        )}
+            );
+          })}
+
+          <a
+            href={VERIFIED_INSTAGRAM_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group relative flex min-h-72 flex-col items-start justify-end gap-4 overflow-hidden rounded-2xl bg-casa p-7 text-white transition duration-300 hover:-translate-y-1 md:col-span-2 lg:col-span-1"
+          >
+            <span aria-hidden="true" className="absolute inset-0 bg-zellige opacity-50" />
+            <Instagram className="relative h-10 w-10" aria-hidden="true" />
+            <span className="relative font-display text-4xl font-extrabold uppercase leading-[0.95]">
+              More on @casastreetldn
+            </span>
+            <span className="relative inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-5 text-xs font-bold uppercase tracking-wider text-casa transition group-hover:gap-3">
+              Open Instagram
+              <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </span>
+          </a>
+        </div>
       </div>
 
-      {/* Video / Reel Preview Lightbox */}
       {activeVideoPost && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Reel preview: ${activeVideoPost.title}`}
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-        >
-          <div className="w-full max-w-xl bg-[#1A1917] border border-white/20 rounded-xl overflow-hidden text-white">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-              <div>
-                <p className="text-xs text-[#F59E0B] font-medium">{activeVideoPost.aspectLabel}</p>
-                <h4 className="font-display text-2xl font-bold uppercase">{activeVideoPost.title}</h4>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveVideoPost(null)}
-                aria-label="Close reel preview"
-                className="w-9 h-9 inline-flex items-center justify-center rounded-md hover:bg-white/10 text-neutral-300 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="relative aspect-[4/3] bg-black overflow-hidden">
-              {activeVideoPost.videoEmbedUrl ? (
-                <video
-                  src={activeVideoPost.videoEmbedUrl}
-                  controls
-                  autoPlay
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="relative w-full h-full">
-                  <img
-                    src={activeVideoPost.mediaUrl}
-                    alt={activeVideoPost.mediaAlt}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover scale-105 animate-[pulse_4s_ease-in-out_infinite]"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30 flex flex-col justify-end p-6">
-                    <p className="text-sm text-neutral-200">{activeVideoPost.caption}</p>
-                    <p className="text-xs text-neutral-400 mt-1">
-                      Watch full kitchen reels directly on @casastreetldn.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="px-5 py-4 flex items-center justify-between gap-4 border-t border-white/10">
-              <span className="text-xs text-neutral-400">Casa Street Verified Channel</span>
-              <a
-                href={activeVideoPost.postUrl || VERIFIED_INSTAGRAM_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-[#C8281E] hover:bg-[#AD2017] text-white text-xs font-semibold uppercase tracking-wider"
-              >
-                <span>Open @casastreetldn</span>
-                <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
-              </a>
-            </div>
-          </div>
-        </div>
+        <ReelDialog post={activeVideoPost} onClose={() => setActiveVideoPost(null)} />
       )}
     </section>
   );
